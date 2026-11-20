@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 
 export function AccountMenu() {
@@ -58,8 +59,11 @@ export function AccountMenu() {
             <>
               <p className="account-email">{user.email ?? "Signed in with Google"}</p>
               <p className="account-popover-copy">
-                Your customer profile is connected. Saved addresses and order history will be added next.
+                Your customer profile is connected. Manage your delivery details below.
               </p>
+              <Link className="account-action account-address-link" href="/account/addresses" onClick={() => setOpen(false)}>
+                MANAGE DELIVERY ADDRESSES
+              </Link>
               <button className="account-action" type="button" disabled={working} onClick={handleSignOut}>
                 {working ? "PLEASE WAIT…" : "SIGN OUT"}
               </button>

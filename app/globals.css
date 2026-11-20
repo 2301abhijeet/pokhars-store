@@ -382,3 +382,67 @@ a { color: inherit; text-decoration: none; }
 /* Cloud cart sync status */
 .cart-sync-note { margin: 0 0 12px; color: var(--green); font-size: 9px; font-weight: 800; line-height: 1.5; }
 .add-button:disabled, .quantity-control button:disabled { opacity: .45; cursor: not-allowed; }
+
+
+/* Customer address book — uses the existing storefront colour and type system. */
+.address-page { min-height: 100vh; }
+.address-header { min-height: 78px; }
+.address-back-link { color: var(--cream); font: 900 9px var(--font-body); letter-spacing: .13em; border-bottom: 1px solid rgba(255,240,207,.55); padding-bottom: 5px; }
+.address-back-link:hover { color: var(--yellow); border-color: var(--yellow); }
+.addresses-content { width: min(1080px, 86%); margin: 0 auto; padding: 66px 0 86px; min-height: 65vh; }
+.addresses-heading { display: flex; align-items: end; justify-content: space-between; gap: 25px; margin-bottom: 31px; }
+.addresses-heading h1 { margin: 0; color: var(--cream); font: 400 clamp(43px, 6vw, 67px)/.98 var(--font-display); }
+.addresses-heading h1 span { color: var(--yellow); }
+.addresses-subtitle { max-width: 470px; margin: 13px 0 0; color: rgba(255,240,207,.8); font-size: 12px; line-height: 1.8; }
+.addresses-user { margin: 8px 0 0; color: var(--yellow); font-size: 10px; font-weight: 700; }
+.address-primary-button { min-height: 44px; display: inline-flex; justify-content: center; align-items: center; gap: 9px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--yellow); color: var(--green-deep); font: 900 9px var(--font-body); letter-spacing: .09em; text-decoration: none; cursor: pointer; transition: transform .18s ease, opacity .18s ease; }
+.address-primary-button:hover { transform: translateY(-2px); }
+.address-primary-button:disabled, .address-text-button:disabled, .address-delete-button:disabled { opacity: .5; cursor: not-allowed; }
+.address-primary-button b { font-size: 17px; }
+.addresses-empty { min-height: 240px; padding: 35px 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 11px; border: 1px dashed rgba(255,240,207,.35); border-radius: 24px; text-align: center; color: var(--cream); }
+.addresses-empty-icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; background: var(--pink); color: var(--green-deep); font-size: 24px; }
+.addresses-empty h2 { margin: 0; font: 400 24px var(--font-display); }
+.addresses-empty p { max-width: 400px; margin: 0 0 8px; color: rgba(255,240,207,.72); font-size: 11px; line-height: 1.7; }
+.addresses-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 17px; }
+.saved-address-card, .address-form-card { padding: 23px; border-radius: 24px; background: var(--cream); color: var(--green-deep); box-shadow: 0 6px 0 rgba(0,0,0,.07); }
+.saved-address-top { display: flex; align-items: center; justify-content: space-between; }
+.saved-address-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: #f4d8af; color: var(--green); font-size: 20px; }
+.default-address-badge { padding: 6px 9px; border-radius: 999px; background: #d8edda; color: #245c35; font: 900 8px var(--font-body); letter-spacing: .12em; }
+.saved-address-card h2 { margin: 15px 0 3px; font: 400 24px var(--font-display); }
+.saved-address-phone { margin: 0 0 11px; color: #63776c; font-size: 10px; font-weight: 700; }
+.saved-address-lines { min-height: 80px; margin: 0; color: #3c574b; font-size: 11px; line-height: 1.75; overflow-wrap: anywhere; }
+.saved-address-actions { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 19px; padding-top: 14px; border-top: 1px solid rgba(5,75,54,.15); }
+.address-text-button, .address-delete-button { padding: 0 0 3px; border: 0; border-bottom: 1px solid currentColor; background: transparent; color: var(--green); font: 900 8px var(--font-body); letter-spacing: .1em; cursor: pointer; }
+.address-delete-button { color: #a43b32; }
+.address-form-card { margin: 0 0 22px; padding: 28px; }
+.address-form-heading { display: flex; justify-content: space-between; align-items: start; gap: 15px; margin-bottom: 20px; }
+.address-form-heading .section-kicker { color: var(--coral); margin-bottom: 6px; }
+.address-form-heading h2 { margin: 0; font: 400 30px var(--font-display); }
+.address-fields-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 15px; }
+.address-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.address-field > span { color: #50665b; font: 900 8px var(--font-body); letter-spacing: .12em; }
+.address-field input { width: 100%; min-height: 43px; padding: 0 12px; border: 1px solid rgba(5,75,54,.24); border-radius: 9px; outline: none; background: #fff9eb; color: var(--green-deep); font: 500 11px var(--font-body); }
+.address-field input:focus { border-color: var(--green); box-shadow: 0 0 0 2px rgba(7,92,69,.12); }
+.address-field input::placeholder { color: #91a096; }
+.address-field-wide { grid-column: 1 / -1; }
+.address-default-check { width: fit-content; display: flex; align-items: center; gap: 9px; margin-top: 18px; color: var(--green-deep); font-size: 10px; font-weight: 700; cursor: pointer; }
+.address-default-check input { width: 15px; height: 15px; accent-color: var(--green); }
+.address-form-actions { display: flex; align-items: center; gap: 18px; margin-top: 21px; }
+.address-message { padding: 11px 13px; border-radius: 10px; font-size: 10px; line-height: 1.6; }
+.address-message.is-error { background: #fbe0d9; color: #9b2825; }
+.address-message.is-success { background: #d8edda; color: #245c35; }
+.address-footer { padding-top: 22px; }
+.address-footer .footer-bottom { border-top: 0; padding-top: 0; }
+.address-footer .footer-bottom a { color: rgba(255,240,207,.72); font: 700 8px var(--font-body); letter-spacing: .12em; }
+.account-address-link { text-decoration: none; text-align: center; }
+@media (max-width: 700px) {
+  .address-header { min-height: 70px; }
+  .addresses-content { width: 90%; padding: 48px 0 65px; }
+  .addresses-heading { align-items: flex-start; flex-direction: column; }
+  .addresses-heading h1 { font-size: 49px; }
+  .addresses-grid { grid-template-columns: 1fr; }
+  .address-form-card { padding: 20px 16px; }
+  .address-fields-grid { grid-template-columns: 1fr; gap: 13px; }
+  .address-field-wide { grid-column: auto; }
+  .saved-address-lines { min-height: auto; }
+}
