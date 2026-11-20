@@ -3,9 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { products } from "@/lib/products";
 import { AccountMenu } from "@/components/auth/account-menu";
+import { useAuth } from "@/components/auth/auth-provider";
+import {
+  mergeGuestCartIntoCloud,
+  saveCloudCartItem,
+  subscribeToCloudCart,
+  type CartQuantities,
+} from "@/lib/firebase/cart";
 
 type Filter = "All" | "Classic" | "Masala" | "Fresh" | "Cheesy" | "Premium";
-type Cart = Record<string, number>;
+type Cart = CartQuantities;
 
 const filters: Filter[] = ["All", "Classic", "Masala", "Fresh", "Cheesy", "Premium"];
 const dayNames = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -24,6 +31,11 @@ export default function HomePage() {
   const [cartOpen, setCartOpen] = useState(false);
   const [cartReady, setCartReady] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [cloudCartReady, setCloudCartReady] = useState(false);
+  const [cartSyncError, setCartSyncError] = useState<string | null>(null);
+  const { user, loading: authLoading } = useAuth();
+  const cartRef = useRef<Cart>({});
+  cartRef.current = cart;
 
   useEffect(() => {
     try {
@@ -40,11 +52,62 @@ export default function HomePage() {
     setCartReady(true);
   }, []);
 
+  // Keep guest carts on this device. Once authenticated, Firestore is the source of truth.
   useEffect(() => {
-    if (cartReady) {
+    if (cartReady && !authLoading && !user) {
       window.localStorage.setItem("pokhars-cart-v1", JSON.stringify(cart));
     }
-  }, [cart, cartReady]);
+  }, [cart, cartReady, authLoading, user]);
+
+  // Merge any guest cart into the customer's cloud cart, then subscribe to
+  // Firestore so updates made on another signed-in device appear here too.
+  useEffect(() => {
+    if (!cartReady || authLoading) return;
+
+    if (!user) {
+      setCloudCartReady(false);
+      setCartSyncError(null);
+      return;
+    }
+
+    let active = true;
+    let unsubscribe: (() => void) | null = null;
+    setCloudCartReady(false);
+    setCartSyncError(null);
+
+    void (async () => {
+      try {
+        const guestCart = cartRef.current;
+        await mergeGuestCartIntoCloud(user.uid, guestCart);
+        if (!active) return;
+
+        window.localStorage.removeItem("pokhars-cart-v1");
+        unsubscribe = subscribeToCloudCart(
+          user.uid,
+          (nextCart) => {
+            if (!active) return;
+            setCart(nextCart);
+            setCloudCartReady(true);
+            setCartSyncError(null);
+          },
+          (cause) => {
+            if (!active) return;
+            setCartSyncError(cause.message || "Your cloud cart could not be loaded.");
+          },
+        );
+      } catch (cause) {
+        if (!active) return;
+        setCartSyncError(
+          cause instanceof Error ? cause.message : "Your cloud cart could not be synced.",
+        );
+      }
+    })();
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, [cartReady, authLoading, user?.uid]);
 
   const visibleProducts = useMemo(
     () => filter === "All" ? products : products.filter((product) => product.category === filter),
@@ -56,20 +119,49 @@ export default function HomePage() {
     (sum, product) => sum + product.price * (cart[product.id] ?? 0),
     0,
   );
+  const cartIsBusy = Boolean(user) && !cloudCartReady;
+
+  function commitCartChange(next: Cart) {
+    cartRef.current = next;
+    setCart(next);
+
+    if (user && cloudCartReady) {
+      setCartSyncError(null);
+      for (const productId of Object.keys(cart)) {
+        if (!(productId in next)) {
+          void saveCloudCartItem(user.uid, productId, 0).catch((cause: unknown) => {
+            setCartSyncError(cause instanceof Error ? cause.message : "Cart update failed.");
+          });
+        }
+      }
+      for (const [productId, quantity] of Object.entries(next)) {
+        if (cart[productId] !== quantity) {
+          void saveCloudCartItem(user.uid, productId, quantity).catch((cause: unknown) => {
+            setCartSyncError(cause instanceof Error ? cause.message : "Cart update failed.");
+          });
+        }
+      }
+    }
+  }
 
   function addToCart(id: string) {
-    setCart((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
+    const current = cartRef.current;
+    const quantity = current[id] ?? 0;
+    if (quantity >= 20) {
+      setCartSyncError("Maximum 20 packs per flavour can be added to the bag.");
+      setCartOpen(true);
+      return;
+    }
+    commitCartChange({ ...current, [id]: quantity + 1 });
     setCartOpen(true);
   }
 
   function changeQuantity(id: string, amount: number) {
-    setCart((current) => {
-      const next = { ...current };
-      const quantity = (next[id] ?? 0) + amount;
-      if (quantity <= 0) delete next[id];
-      else next[id] = quantity;
-      return next;
-    });
+    const next = { ...cartRef.current };
+    const quantity = (next[id] ?? 0) + amount;
+    if (quantity <= 0) delete next[id];
+    else next[id] = Math.min(quantity, 20);
+    commitCartChange(next);
   }
 
   function closeMobileMenu() {
@@ -211,6 +303,7 @@ export default function HomePage() {
                     <button
                       className="add-button"
                       type="button"
+                      disabled={cartIsBusy}
                       aria-label={`Add ${product.name} to bag`}
                       onClick={() => addToCart(product.id)}
                     >
@@ -342,9 +435,9 @@ export default function HomePage() {
                         <strong>{product.name}</strong>
                         <span>{product.weight} · {formatPrice(product.price)}</span>
                         <div className="quantity-control">
-                          <button type="button" aria-label={`Remove one ${product.name}`} onClick={() => changeQuantity(product.id, -1)}>−</button>
+                          <button type="button" disabled={cartIsBusy} aria-label={`Remove one ${product.name}`} onClick={() => changeQuantity(product.id, -1)}>−</button>
                           <span>{cart[product.id]}</span>
-                          <button type="button" aria-label={`Add one ${product.name}`} onClick={() => changeQuantity(product.id, 1)}>+</button>
+                          <button type="button" disabled={cartIsBusy || (cart[product.id] ?? 0) >= 20} aria-label={`Add one ${product.name}`} onClick={() => changeQuantity(product.id, 1)}>+</button>
                         </div>
                       </div>
                       <strong className="line-total">{formatPrice(product.price * cart[product.id])}</strong>
@@ -352,6 +445,13 @@ export default function HomePage() {
                   ))}
                 </div>
                 <div className="drawer-summary">
+                  <p className="cart-sync-note">
+                    {cartSyncError
+                      ? `Cart sync issue: ${cartSyncError}`
+                      : user
+                        ? (cloudCartReady ? "✓ Cart synced to your account" : "Syncing your cart…")
+                        : "Cart saved on this device"}
+                  </p>
                   <div><span>Subtotal</span><strong>{formatPrice(subtotal)}</strong></div>
                   <p>Shipping and taxes will be calculated at checkout.</p>
                   <div className="checkout-notice">

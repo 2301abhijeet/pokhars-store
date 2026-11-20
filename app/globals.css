@@ -377,3 +377,8 @@ a { color: inherit; text-decoration: none; }
 /* Keep the account dropdown above the hero so its controls receive pointer events. */
 .account-popover { pointer-events: auto; }
 .account-action { position: relative; z-index: 1; pointer-events: auto; cursor: pointer; }
+
+
+/* Cloud cart sync status */
+.cart-sync-note { margin: 0 0 12px; color: var(--green); font-size: 9px; font-weight: 800; line-height: 1.5; }
+.add-button:disabled, .quantity-control button:disabled { opacity: .45; cursor: not-allowed; }
