@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { products } from "@/lib/products";
 import { AccountMenu } from "@/components/auth/account-menu";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -107,7 +107,7 @@ export default function HomePage() {
       active = false;
       unsubscribe?.();
     };
-  }, [cartReady, authLoading, user?.uid]);
+  }, [cartReady, authLoading, user]);
 
   const visibleProducts = useMemo(
     () => filter === "All" ? products : products.filter((product) => product.category === filter),
@@ -122,12 +122,13 @@ export default function HomePage() {
   const cartIsBusy = Boolean(user) && !cloudCartReady;
 
   function commitCartChange(next: Cart) {
+    const previous = cartRef.current;
     cartRef.current = next;
     setCart(next);
 
     if (user && cloudCartReady) {
       setCartSyncError(null);
-      for (const productId of Object.keys(cart)) {
+      for (const productId of Object.keys(previous)) {
         if (!(productId in next)) {
           void saveCloudCartItem(user.uid, productId, 0).catch((cause: unknown) => {
             setCartSyncError(cause instanceof Error ? cause.message : "Cart update failed.");
@@ -135,7 +136,7 @@ export default function HomePage() {
         }
       }
       for (const [productId, quantity] of Object.entries(next)) {
-        if (cart[productId] !== quantity) {
+        if (previous[productId] !== quantity) {
           void saveCloudCartItem(user.uid, productId, quantity).catch((cause: unknown) => {
             setCartSyncError(cause instanceof Error ? cause.message : "Cart update failed.");
           });
