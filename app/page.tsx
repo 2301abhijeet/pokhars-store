@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { products } from "@/lib/products";
+import { products as previewProducts, type Product } from "@/lib/products";
+import { subscribeToPublishedProducts } from "@/lib/firebase/catalogue";
 import { AccountMenu } from "@/components/auth/account-menu";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
@@ -31,11 +32,29 @@ export default function HomePage() {
   const [cartOpen, setCartOpen] = useState(false);
   const [cartReady, setCartReady] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [firestoreProducts, setFirestoreProducts] = useState<Product[] | null>(null);
+  const [catalogueError, setCatalogueError] = useState<string | null>(null);
   const [cloudCartReady, setCloudCartReady] = useState(false);
   const [cartSyncError, setCartSyncError] = useState<string | null>(null);
   const { user, loading: authLoading } = useAuth();
   const cartRef = useRef<Cart>({});
   cartRef.current = cart;
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    try {
+      unsubscribe = subscribeToPublishedProducts(
+        (nextProducts) => {
+          setFirestoreProducts(nextProducts);
+          setCatalogueError(null);
+        },
+        (cause) => setCatalogueError(cause.message || "Live product catalogue could not be loaded."),
+      );
+    } catch (cause) {
+      setCatalogueError(cause instanceof Error ? cause.message : "Live product catalogue could not be loaded.");
+    }
+    return () => unsubscribe?.();
+  }, []);
 
   useEffect(() => {
     try {
@@ -109,12 +128,24 @@ export default function HomePage() {
     };
   }, [cartReady, authLoading, user]);
 
+  const catalogueProducts = firestoreProducts && firestoreProducts.length > 0
+    ? firestoreProducts
+    : previewProducts;
+  const hasLiveCatalogue = Boolean(firestoreProducts && firestoreProducts.length > 0);
+  const catalogueMessage = hasLiveCatalogue
+    ? "LIVE CATALOGUE · FIRESTORE CONNECTED"
+    : catalogueError
+      ? "PREVIEW CATALOGUE · LIVE DATA NEEDS ATTENTION"
+      : firestoreProducts === null
+        ? "CONNECTING TO FIRESTORE CATALOGUE…"
+        : "PREVIEW CATALOGUE · ADD PUBLISHED PRODUCTS TO FIRESTORE";
+
   const visibleProducts = useMemo(
-    () => filter === "All" ? products : products.filter((product) => product.category === filter),
-    [filter],
+    () => filter === "All" ? catalogueProducts : catalogueProducts.filter((product) => product.category === filter),
+    [filter, catalogueProducts],
   );
   const cartCount = Object.values(cart).reduce((sum, quantity) => sum + quantity, 0);
-  const cartItems = products.filter((product) => (cart[product.id] ?? 0) > 0);
+  const cartItems = catalogueProducts.filter((product) => (cart[product.id] ?? 0) > 0);
   const subtotal = cartItems.reduce(
     (sum, product) => sum + product.price * (cart[product.id] ?? 0),
     0,
@@ -257,7 +288,15 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="catalogue-note"><span>✳</span> PREVIEW FLAVOURS — SAMPLE PACK ART AND PRICES FOR WEBSITE TESTING</div>
+        <div className={hasLiveCatalogue ? "catalogue-note is-live" : "catalogue-note"}>
+          <span>✳</span> {catalogueMessage}
+        </div>
+        {catalogueError && (
+          <p className="catalogue-disclaimer" role="status">
+            Firestore catalogue is temporarily unavailable. Showing preview products instead.
+            Details: {catalogueError}
+          </p>
+        )}
 
         <div className="shop-toolbar">
           <div className="filter-list" aria-label="Filter products">
@@ -277,8 +316,8 @@ export default function HomePage() {
         </div>
 
         <div className="product-grid">
-          {visibleProducts.map((product) => {
-            const day = dayNames[products.findIndex((item) => item.id === product.id)] ?? "EVERYDAY";
+          {visibleProducts.map((product, productIndex) => {
+            const day = dayNames[productIndex] ?? "EVERYDAY";
             return (
               <article className="product-card" key={product.id}>
                 <div className="card-heading" style={{ "--flavour": product.accent, "--flavour-ink": product.ink } as React.CSSProperties}>
@@ -329,8 +368,8 @@ export default function HomePage() {
             <h3>POKHAR’S<br /><span>SUNDAY CLUB</span></h3>
             <p>Commitment issues? Take the whole flavour gang home.</p>
           </div>
-          <div className="mini-pack-row" aria-label="Six preview flavour packs">
-            {products.map((product) => (
+          <div className="mini-pack-row" aria-label="Featured flavour packs">
+            {catalogueProducts.map((product) => (
               <div className="mini-pack" key={product.id} style={{ "--flavour": product.accent, "--flavour-ink": product.ink } as React.CSSProperties}>
                 <span>POKHAR’S</span><b>{product.symbol}</b><small>{product.name}</small>
               </div>

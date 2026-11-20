@@ -12,6 +12,7 @@ export type Product = {
   mood: string;
   tagline: string;
   tag?: string;
+  imageUrl?: string;
 };
 
 // Preview catalogue only. Replace flavour names, pack details, ingredients and
