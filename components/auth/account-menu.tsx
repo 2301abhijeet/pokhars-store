@@ -67,7 +67,7 @@ export function AccountMenu() {
           ) : (
             <>
               <p className="account-popover-copy">
-                Continue to Google securely. After sign-in, you will return to POKHAR'S automatically.
+                Continue to Google securely. After sign-in, you will return to POKHAR&apos;S automatically.
               </p>
               <button className="account-action" type="button" disabled={working} onClick={handleGoogleSignIn}>
                 {working ? "REDIRECTING TO GOOGLE…" : "CONTINUE WITH GOOGLE"}
