@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { products } from "@/lib/products";
+import { AccountMenu } from "@/components/auth/account-menu";
 
 type Filter = "All" | "Classic" | "Masala" | "Fresh" | "Cheesy" | "Premium";
 type Cart = Record<string, number>;
@@ -104,6 +105,7 @@ export default function HomePage() {
           <a href="#heritage" onClick={closeMobileMenu}>MITHILA VIBES</a>
         </nav>
 
+        <AccountMenu />
         <button className="cart-trigger" type="button" onClick={() => setCartOpen(true)}>
           <span>YOUR BAG</span><span className="cart-count">{cartCount}</span>
         </button>
