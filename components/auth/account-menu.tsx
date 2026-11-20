@@ -13,8 +13,7 @@ export function AccountMenu() {
     try {
       await signInWithGoogle();
     } catch {
-      // Auth provider displays the readable error.
-    } finally {
+      // Auth provider displays a helpful error in this panel.
       setWorking(false);
     }
   }
@@ -68,11 +67,10 @@ export function AccountMenu() {
           ) : (
             <>
               <p className="account-popover-copy">
-                Sign in with Google to create your customer profile. You can browse and add to your bag
-                without signing in.
+                Continue to Google securely. After sign-in, you will return to POKHAR'S automatically.
               </p>
               <button className="account-action" type="button" disabled={working} onClick={handleGoogleSignIn}>
-                {working ? "CONNECTING…" : "CONTINUE WITH GOOGLE"}
+                {working ? "REDIRECTING TO GOOGLE…" : "CONTINUE WITH GOOGLE"}
               </button>
             </>
           )}
