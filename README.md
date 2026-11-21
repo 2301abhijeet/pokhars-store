@@ -30,6 +30,25 @@ The storefront is being built in two stages:
 
 The current prototype uses a playful snack-brand visual direction based on the supplied reference: green canvas, cream rounded cards, bright yellow type, pink shapes and colour-coded flavour packs. The later brand layer will draw on Mithila visual motifs such as fish, peacock, lotus, vines and geometric borders. Artwork will live separately from commerce logic so it can be swapped from Figma exports.
 
+## Firebase setup
+
+The app's Firebase Web SDK uses the registered **POKHAR'S Storefront** app in project `pokhars-store`.
+
+For local development, copy `.env.example` to `.env.local`. The `.firebaserc` file selects `pokhars-store` for Firebase CLI commands. Firebase client settings are public browser configuration; keep payment and ImageKit private keys server-only. `firebase.json` points to the Firestore rules and indexes, which should be reviewed before deployment.
+
+### Authentication domains
+
+Use the Firebase default auth domain locally and the same-origin Vercel auth domain on every Vercel target:
+
+| Environment | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` |
+| --- | --- |
+| Local `.env.local` | `pokhars-store.firebaseapp.com` |
+| Vercel Development, Preview, Production | `pokhars-store.vercel.app` |
+
+The `.env.example` value is for local development. Keep the Vercel value separate for Development, Preview, and Production; do not copy the local value over it. `next.config.ts` serves Firebase's `/__/auth/` helper on the storefront origin by rewriting it to `https://pokhars-store.firebaseapp.com/__/auth/`; keep this rewrite in place.
+
+Google is enabled as a sign-in provider. `localhost` and `pokhars-store.vercel.app` are authorized; add any custom production domain under **Authentication → Settings → Authorized domains** in the Firebase Console.
+
 ## Security principles
 
 - Never expose payment secrets in browser code.
