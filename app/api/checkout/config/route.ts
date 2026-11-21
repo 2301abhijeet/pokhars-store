@@ -10,5 +10,6 @@ export async function GET() {
     keyId: config.keyId,
     shippingPaise: config.shippingPaise,
     livePaymentsEnabled: false,
+    simulationEnabled: process.env.VERCEL_ENV !== "production" && process.env.CHECKOUT_SIMULATION_ENABLED === "true",
   }, { headers: { "cache-control": "no-store" } });
 }
