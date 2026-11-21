@@ -36,7 +36,7 @@ The app's Firebase Web SDK uses the registered **POKHAR'S Storefront** app in pr
 
 For local development, copy `.env.example` to `.env.local`. The `.firebaserc` file selects `pokhars-store` for Firebase CLI commands. Firebase client settings are public browser configuration; keep payment and ImageKit private keys server-only. `firebase.json` points to the Firestore rules and indexes, which should be reviewed before deployment.
 
-The app uses Google sign-in. Enable Google under **Authentication → Sign-in method** in the Firebase Console before testing sign-in. `localhost` and `pokhars-store.vercel.app` are already authorized; add any custom production domain there as well.
+Google is enabled as a sign-in provider. `localhost` and `pokhars-store.vercel.app` are authorized; add any custom production domain under **Authentication → Settings → Authorized domains** in the Firebase Console.
 
 ## Security principles
 
