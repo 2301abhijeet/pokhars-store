@@ -16,7 +16,7 @@ import {
 
 type Filter = "All" | "Classic" | "Masala" | "Fresh" | "Cheesy" | "Premium";
 type Cart = CartQuantities;
-type CheckoutConfig = { enabled: boolean; mode: "test" | null; keyId: string; shippingPaise: number; livePaymentsEnabled: false };
+type CheckoutConfig = { enabled: boolean; mode: "test" | null; keyId: string; shippingPaise: number; livePaymentsEnabled: false; simulationEnabled: boolean };
 type RazorpayPaymentResponse = { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string };
 type PendingPayment = { orderId: string; response: RazorpayPaymentResponse };
 type RazorpayOptions = {
@@ -317,12 +317,16 @@ export default function HomePage() {
       }
       return;
     }
-    if (!checkoutConfig?.enabled || checkoutConfig.mode !== "test") {
-      setCheckoutError("Test checkout is not configured yet. Live payments are disabled.");
-      return;
-    }
     if (!hasLiveCatalogue || !selectedAddressId || cartItems.length === 0) {
       setCheckoutError("Choose a saved address and make sure the live catalogue is available.");
+      return;
+    }
+    if (checkoutConfig?.simulationEnabled) {
+      setCheckoutMessage("Checkout simulation complete. No payment was taken, no order was created, and your bag is unchanged.");
+      return;
+    }
+    if (!checkoutConfig?.enabled || checkoutConfig.mode !== "test") {
+      setCheckoutError("Test checkout is not configured yet. Live payments are disabled.");
       return;
     }
     const auth = getFirebaseAuth();
@@ -702,17 +706,18 @@ export default function HomePage() {
                   {checkoutError && <p className="checkout-feedback error" role="alert">{checkoutError}</p>}
                   {checkoutMessage && <p className="checkout-feedback" role="status">{checkoutMessage}</p>}
                   {pendingPayment && <button className="drawer-cta checkout-button secondary" type="button" disabled={checkoutBusy} onClick={() => void checkPaymentAgain()}>{checkoutBusy ? "CHECKING…" : "CHECK PAYMENT STATUS"}</button>}
-                  {user && savedAddresses.length > 0 && !checkoutConfig?.enabled && <div className="checkout-notice">Test checkout is not configured yet. Live payments are disabled.</div>}
+                  {user && savedAddresses.length > 0 && checkoutConfig?.simulationEnabled && <div className="checkout-notice">Staging simulation only: no payment provider is contacted, no order is created, and no sales data is recorded.</div>}
+                  {user && savedAddresses.length > 0 && !checkoutConfig?.enabled && !checkoutConfig?.simulationEnabled && <div className="checkout-notice">Test checkout is not configured yet. Live payments are disabled.</div>}
                   {user && savedAddresses.length === 0 && <a className="checkout-address-link" href="/account/addresses">ADD A DELIVERY ADDRESS →</a>}
                   <button
                     className="drawer-cta checkout-button"
                     type="button"
-                    disabled={checkoutBusy || cartIsBusy || (Boolean(user) && (!checkoutConfig?.enabled || !selectedAddressId || savedAddresses.length === 0 || !hasLiveCatalogue))}
+                    disabled={checkoutBusy || cartIsBusy || (Boolean(user) && (!checkoutConfig?.enabled && !checkoutConfig?.simulationEnabled || !selectedAddressId || savedAddresses.length === 0 || !hasLiveCatalogue))}
                     onClick={() => void startCheckout()}
                   >
-                    {checkoutBusy ? "PREPARING TEST CHECKOUT…" : !user ? "SIGN IN TO CHECK OUT" : checkoutConfig?.enabled ? "CONTINUE TO TEST PAYMENT" : "TEST CHECKOUT NOT CONFIGURED"}
+                    {checkoutBusy ? "PREPARING TEST CHECKOUT…" : !user ? "SIGN IN TO CHECK OUT" : checkoutConfig?.simulationEnabled ? "RUN CHECKOUT SIMULATION" : checkoutConfig?.enabled ? "CONTINUE TO TEST PAYMENT" : "TEST CHECKOUT NOT CONFIGURED"}
                   </button>
-                  <p className="checkout-live-note">TEST MODE ONLY · NO REAL PAYMENT · LIVE PAYMENTS DISABLED</p>
+                  <p className="checkout-live-note">{checkoutConfig?.simulationEnabled ? "STAGING SIMULATION · NO PAYMENT · NO ORDER CREATED" : "TEST MODE ONLY · NO REAL PAYMENT · LIVE PAYMENTS DISABLED"}</p>
                 </div>
               </>
             )}

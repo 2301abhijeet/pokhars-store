@@ -77,6 +77,12 @@ The Admin SDK bypasses Firestore Security Rules, so every route performs server-
 
 Sales are calculated only from non-test order documents returned by the admin API and marked `paymentStatus: "paid"`. Test orders are labeled and excluded from sales and fulfilment. The current dashboard loads the latest 200 orders, so the overview is a recent loaded-order view, not a lifetime accounting ledger.
 
+## Staging checkout simulation
+
+For a UI-only checkout walkthrough without a payment-provider account, set `CHECKOUT_SIMULATION_ENABLED=true` in Vercel **Preview** only, then redeploy the Preview deployment. The server returns this flag only outside Production. The customer must still sign in, have a published catalogue and select a saved delivery address.
+
+The simulation confirms the checkout interaction in the browser only. It does not call a payment provider, create or update an order, mark an order paid, record sales, clear the bag, or change inventory. Production always reports the simulation as disabled. Remove the Preview flag to hide the simulation.
+
 ## Test checkout setup
 
 Checkout is deliberately **test-only**. The server rejects live Razorpay keys and disables checkout on Vercel Production, always tags test orders with `paymentMode: "test"`, and the dashboard excludes them from live sales and fulfilment. A test payment records an explicitly labeled test order but never changes storefront stock. Do not add live Razorpay credentials. Shipping and tax policy is undecided: test shipping defaults to ₹0 and tax is not included.
