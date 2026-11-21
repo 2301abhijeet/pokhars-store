@@ -57,6 +57,30 @@ Google is enabled as a sign-in provider. `localhost` and `pokhars-store.vercel.a
 - Enforce customer ownership and admin permissions in backend rules/functions.
 - Keep Firebase configuration and third-party keys in environment variables.
 
+## Admin dashboard setup
+
+The private admin dashboard is available at `/admin`. It uses the existing Google sign-in and does not grant access to any account by default. A Firebase ID token is verified on every `/api/admin/*` request, including revocation checks. The server then allows either (a) a UID in the server-only `ADMIN_UIDS` list, (b) a verified email in `ADMIN_EMAILS`, or (c) the trusted Firebase custom claim `admin: true`. A browser-provided email or Firestore profile is never used as an authorization signal.
+
+### One-time owner setup
+
+1. In Firebase Authentication, identify the owner's intended account and copy its exact UID. Do not use an email until it is verified in Firebase Authentication.
+2. Create a service account for the `pokhars-store` Firebase project with only the access needed to read/write Firestore and verify Firebase Auth tokens. Keep its JSON private.
+3. In the existing Vercel project, add these server-only variables for the environments where the dashboard should work:
+   - `FIREBASE_PROJECT_ID=pokhars-store`
+   - `FIREBASE_SERVICE_ACCOUNT_JSON=<the service account JSON on one line>`
+   - `ADMIN_UIDS=<the exact owner UID>`
+4. Redeploy the project. Sign in at `/admin` using that owner account. Other signed-in customers will receive an access denied response.
+
+Use `ADMIN_EMAILS` with a comma-separated list of verified addresses only if you prefer email bootstrapping. Avoid setting both allowlists broadly. Remove a UID/email from Vercel and redeploy to revoke this bootstrap role. Alternatively, a trusted Admin SDK operator can set the custom claim on the exact intended UID (`setCustomUserClaims(uid, { admin: true })`); never expose that operation in a public route. The dashboard does not promote the current user or set claims automatically.
+
+The Admin SDK bypasses Firestore Security Rules, so every route performs server-side authorization and input validation before touching Firestore. Client Firestore writes remain denied by the current rules. Product deletion archives by setting the product inactive and draft; order status updates are limited to paid orders moving confirmed → processing → shipped → delivered and do not change payment/refund state. Coupon records can be created and deactivated, but cannot be activated because checkout does not yet validate or apply coupons. Images currently use the existing single `imageUrl` field; uploading files and multi-image galleries need a storage/schema milestone.
+
+Sales are calculated only from order documents actually returned by the admin API and marked `paymentStatus: "paid"`. The current dashboard loads the latest 200 orders, so the overview is a recent loaded-order view, not a lifetime accounting ledger. No checkout, order creation, payment, refund, shipping charge or settlement behavior is added here.
+
+### Rules and indexes review
+
+The repository's existing rules already restrict product reads to published active products (or admins with the `admin` custom claim), restrict order reads to the owner or that claim, and deny all client writes to products, orders and coupons. The new dashboard uses the server Admin SDK behind its own explicit role check, so changing rules to allow browser admin writes would weaken the customer boundary and is not needed. `firestore.rules` and `firestore.indexes.json` are intentionally unchanged; the orders query uses Firestore's automatic single-field `createdAt` index. Review these files before any separate rules deployment. No rules or indexes were deployed by this change.
+
 ## Status
 
 Project setup and implementation are in progress. Backend services and payment integrations are not configured yet.
