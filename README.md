@@ -30,6 +30,14 @@ The storefront is being built in two stages:
 
 The current prototype uses a playful snack-brand visual direction based on the supplied reference: green canvas, cream rounded cards, bright yellow type, pink shapes and colour-coded flavour packs. The later brand layer will draw on Mithila visual motifs such as fish, peacock, lotus, vines and geometric borders. Artwork will live separately from commerce logic so it can be swapped from Figma exports.
 
+## Firebase setup
+
+The app's Firebase Web SDK uses the registered **POKHAR'S Storefront** app in project `pokhars-store`.
+
+For local development, copy `.env.example` to `.env.local`. The `.firebaserc` file selects `pokhars-store` for Firebase CLI commands. Firebase client settings are public browser configuration; keep payment and ImageKit private keys server-only. `firebase.json` points to the Firestore rules and indexes, which should be reviewed before deployment.
+
+The app uses Google sign-in. Enable Google under **Authentication → Sign-in method** in the Firebase Console before testing sign-in. `localhost` and `pokhars-store.vercel.app` are already authorized; add any custom production domain there as well.
+
 ## Security principles
 
 - Never expose payment secrets in browser code.
