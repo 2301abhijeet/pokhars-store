@@ -73,9 +73,27 @@ The private admin dashboard is available at `/admin`. It uses the existing Googl
 
 Use `ADMIN_EMAILS` with a comma-separated list of verified addresses only if you prefer email bootstrapping. Avoid setting both allowlists broadly. Remove a UID/email from Vercel and redeploy to revoke this bootstrap role. Alternatively, a trusted Admin SDK operator can set the custom claim on the exact intended UID (`setCustomUserClaims(uid, { admin: true })`); never expose that operation in a public route. The dashboard does not promote the current user or set claims automatically.
 
-The Admin SDK bypasses Firestore Security Rules, so every route performs server-side authorization and input validation before touching Firestore. Client Firestore writes remain denied by the current rules. Product deletion archives by setting the product inactive and draft; order status updates are limited to paid orders moving confirmed → processing → shipped → delivered and do not change payment/refund state. Coupon records can be created and deactivated, but cannot be activated because checkout does not yet validate or apply coupons. Images currently use the existing single `imageUrl` field; uploading files and multi-image galleries need a storage/schema milestone.
+The Admin SDK bypasses Firestore Security Rules, so every route performs server-side authorization and input validation before touching Firestore. Client Firestore writes remain denied by the current rules. Product deletion archives by setting the product inactive and draft; only non-test paid orders can move confirmed → processing → shipped → delivered, and payment/refund state is not changed. Coupon records can be created and deactivated, but cannot be activated or applied by checkout. Images currently use the existing single `imageUrl` field; uploading files and multi-image galleries need a storage/schema milestone.
 
-Sales are calculated only from order documents actually returned by the admin API and marked `paymentStatus: "paid"`. The current dashboard loads the latest 200 orders, so the overview is a recent loaded-order view, not a lifetime accounting ledger. No checkout, order creation, payment, refund, shipping charge or settlement behavior is added here.
+Sales are calculated only from non-test order documents returned by the admin API and marked `paymentStatus: "paid"`. Test orders are labeled and excluded from sales and fulfilment. The current dashboard loads the latest 200 orders, so the overview is a recent loaded-order view, not a lifetime accounting ledger.
+
+## Test checkout setup
+
+Checkout is deliberately **test-only**. The server rejects live Razorpay keys and disables checkout on Vercel Production, always tags test orders with `paymentMode: "test"`, and the dashboard excludes them from live sales and fulfilment. A test payment records an explicitly labeled test order but never changes storefront stock. Do not add live Razorpay credentials. Shipping and tax policy is undecided: test shipping defaults to ₹0 and tax is not included.
+
+To enable a test purchase after reviewing this change:
+
+1. In the Razorpay Dashboard, switch to **Test Mode** and create a test API key. The key ID must begin with `rzp_test_`.
+2. For a safe test, create a separate Firebase staging project first, then add its Firebase Admin credentials and these Razorpay variables to the Vercel **Preview** environment only (or use a local `.env.local` connected to staging):
+   - `RAZORPAY_MODE=test`
+   - `RAZORPAY_KEY_ID=<Razorpay test key ID>`
+   - `RAZORPAY_KEY_SECRET=<matching Razorpay test key secret>`
+   - `RAZORPAY_WEBHOOK_SECRET=<a webhook secret you choose in Razorpay>`
+   - Optional `CHECKOUT_TEST_SHIPPING_PAISE=0` (for example, `5000` means ₹50.00)
+3. In Razorpay Test Mode, add a webhook pointing to the Preview deployment URL shown by Vercel, followed by `/api/payments/razorpay/webhook`. Use the same webhook secret and subscribe to `payment.captured` and `payment.failed`.
+4. Redeploy the Preview deployment after adding the variables. Sign in to that preview, add a saved delivery address under `/account/addresses`, and use Razorpay's test payment details.
+
+Never put Razorpay keys in `NEXT_PUBLIC_*` variables or in chat. If the test variables are missing, checkout remains disabled and the site says that live payments are disabled. Vercel Production always keeps checkout disabled, even if someone adds test credentials there. Shipping, tax calculation, refunds, coupon redemption, payment settlement and live payment support remain out of scope. Orders are written through server-only Admin SDK routes; test checkouts do not change inventory, and Firestore client writes remain denied by the existing rules. No Firestore rules or indexes were changed or deployed for checkout.
 
 ### Rules and indexes review
 
@@ -83,4 +101,4 @@ The repository's existing rules already restrict product reads to published acti
 
 ## Status
 
-Project setup and implementation are in progress. Backend services and payment integrations are not configured yet.
+The dashboard and test-only checkout are implemented. Razorpay test credentials and the test webhook still need to be added by the owner before a test purchase can be completed.
