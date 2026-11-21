@@ -5,6 +5,8 @@ import { products as previewProducts, type Product } from "@/lib/products";
 import { subscribeToPublishedProducts } from "@/lib/firebase/catalogue";
 import { AccountMenu } from "@/components/auth/account-menu";
 import { useAuth } from "@/components/auth/auth-provider";
+import { subscribeToCustomerAddresses, type CustomerAddress } from "@/lib/firebase/addresses";
+import { getFirebaseAuth } from "@/lib/firebase/client";
 import {
   mergeGuestCartIntoCloud,
   saveCloudCartItem,
@@ -14,6 +16,32 @@ import {
 
 type Filter = "All" | "Classic" | "Masala" | "Fresh" | "Cheesy" | "Premium";
 type Cart = CartQuantities;
+type CheckoutConfig = { enabled: boolean; mode: "test" | null; keyId: string; shippingPaise: number; livePaymentsEnabled: false };
+type RazorpayPaymentResponse = { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string };
+type PendingPayment = { orderId: string; response: RazorpayPaymentResponse };
+type RazorpayOptions = {
+  key: string; amount: number; currency: string; name: string; description: string; order_id: string;
+  prefill: { name: string; email: string; contact: string };
+  theme: { color: string };
+  handler: (response: RazorpayPaymentResponse) => void | Promise<void>;
+  modal: { ondismiss: () => void };
+};
+type RazorpayInstance = { open: () => void; on: (event: string, callback: (event: { error?: { description?: string } }) => void) => void };
+
+function loadRazorpayCheckout(): Promise<boolean> {
+  const razorpayWindow = window as typeof window & { Razorpay?: new (options: RazorpayOptions) => RazorpayInstance };
+  if (razorpayWindow.Razorpay) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const existing = document.getElementById("razorpay-checkout-script") as HTMLScriptElement | null;
+    const script = existing ?? document.createElement("script");
+    script.id = "razorpay-checkout-script";
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(Boolean(razorpayWindow.Razorpay));
+    script.onerror = () => resolve(false);
+    if (!existing) document.body.appendChild(script);
+  });
+}
 
 const filters: Filter[] = ["All", "Classic", "Masala", "Fresh", "Cheesy", "Premium"];
 const dayNames = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -26,6 +54,15 @@ function formatPrice(value: number) {
   }).format(value);
 }
 
+function formatPricePaise(value: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value / 100);
+}
+
 export default function HomePage() {
   const [filter, setFilter] = useState<Filter>("All");
   const [cart, setCart] = useState<Cart>({});
@@ -36,7 +73,14 @@ export default function HomePage() {
   const [catalogueError, setCatalogueError] = useState<string | null>(null);
   const [cloudCartReady, setCloudCartReady] = useState(false);
   const [cartSyncError, setCartSyncError] = useState<string | null>(null);
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState("");
+  const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig | null>(null);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
+  const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(null);
   const cartRef = useRef<Cart>({});
   cartRef.current = cart;
 
@@ -128,6 +172,45 @@ export default function HomePage() {
     };
   }, [cartReady, authLoading, user]);
 
+  useEffect(() => {
+    if (!cartOpen || !user) {
+      setSavedAddresses([]);
+      setSelectedAddressId("");
+      return;
+    }
+    let active = true;
+    try {
+      const unsubscribe = subscribeToCustomerAddresses(user.uid, (addresses) => {
+        if (!active) return;
+        setSavedAddresses(addresses);
+        setSelectedAddressId((current) => current && addresses.some((address) => address.id === current)
+          ? current
+          : addresses.find((address) => address.isDefault)?.id ?? addresses[0]?.id ?? "");
+      }, (cause) => {
+        if (active) setCheckoutError(cause.message || "Saved delivery addresses could not be loaded.");
+      });
+      return () => { active = false; unsubscribe(); };
+    } catch (cause) {
+      setCheckoutError(cause instanceof Error ? cause.message : "Saved delivery addresses could not be loaded.");
+    }
+    return () => { active = false; };
+  }, [cartOpen, user]);
+
+  useEffect(() => {
+    if (!cartOpen || !user) return;
+    let active = true;
+    void fetch("/api/checkout/config", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Checkout settings could not be loaded.");
+        return response.json() as Promise<CheckoutConfig>;
+      })
+      .then((config) => { if (active) setCheckoutConfig(config); })
+      .catch((cause: unknown) => {
+        if (active) setCheckoutError(cause instanceof Error ? cause.message : "Checkout settings could not be loaded.");
+      });
+    return () => { active = false; };
+  }, [cartOpen, user]);
+
   const catalogueProducts = firestoreProducts && firestoreProducts.length > 0
     ? firestoreProducts
     : previewProducts;
@@ -194,6 +277,115 @@ export default function HomePage() {
     if (quantity <= 0) delete next[id];
     else next[id] = Math.min(quantity, 20);
     commitCartChange(next);
+  }
+
+  async function verifyPayment(orderId: string, response: RazorpayPaymentResponse) {
+    if (!user) throw new Error("Sign in again to verify this payment.");
+    const token = await user.getIdToken();
+    const result = await fetch("/api/checkout/verify-payment", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ orderId, ...response }),
+    });
+    const payload = await result.json().catch(() => ({})) as { status?: string; message?: string; orderNumber?: string; error?: string };
+    if (payload.status === "paid") {
+      setPendingPayment(null);
+      setCheckoutMessage(`Test payment confirmed for ${payload.orderNumber || "your order"}. No real payment was taken.`);
+      setCheckoutError(null);
+      commitCartChange({});
+      return;
+    }
+    if (payload.status === "processing") {
+      setCheckoutMessage(payload.message || "Payment is still processing. Check again in a moment.");
+      return;
+    }
+    if (payload.status === "failed") {
+      setPendingPayment(null);
+      setCheckoutMessage(null);
+      throw new Error(payload.message || "The test payment failed. You can try again.");
+    }
+    if (!result.ok) throw new Error(payload.message || payload.error || "Payment could not be verified yet. Please check again.");
+    throw new Error(payload.message || "Test payment did not complete.");
+  }
+
+  async function startCheckout() {
+    setCheckoutError(null);
+    setCheckoutMessage(null);
+    if (!user) {
+      try { await signInWithGoogle(); } catch (cause) {
+        setCheckoutError(cause instanceof Error ? cause.message : "Please sign in to continue.");
+      }
+      return;
+    }
+    if (!checkoutConfig?.enabled || checkoutConfig.mode !== "test") {
+      setCheckoutError("Test checkout is not configured yet. Live payments are disabled.");
+      return;
+    }
+    if (!hasLiveCatalogue || !selectedAddressId || cartItems.length === 0) {
+      setCheckoutError("Choose a saved address and make sure the live catalogue is available.");
+      return;
+    }
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      setCheckoutError("Sign-in is not available right now.");
+      return;
+    }
+    setCheckoutBusy(true);
+    try {
+      const token = await user.getIdToken();
+      const created = await fetch("/api/checkout/orders", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          addressId: selectedAddressId,
+          requestId: crypto.randomUUID(),
+          items: cartItems.map((product) => ({ productId: product.id, quantity: cart[product.id] })),
+        }),
+      });
+      const order = await created.json().catch(() => ({})) as {
+        orderId?: string; orderNumber?: string; razorpayOrderId?: string; amount?: number; currency?: string; keyId?: string; error?: string;
+      };
+      if (!created.ok || !order.orderId || !order.razorpayOrderId || !order.keyId || !order.amount) {
+        throw new Error(order.error || "A test order could not be created. Refresh your bag and try again.");
+      }
+      const loaded = await loadRazorpayCheckout();
+      const razorpayWindow = window as typeof window & { Razorpay?: new (options: RazorpayOptions) => RazorpayInstance };
+      if (!loaded || !razorpayWindow.Razorpay) throw new Error("The test payment window could not be loaded. Your reserved stock will be released automatically after 30 minutes.");
+      const address = savedAddresses.find((item) => item.id === selectedAddressId)!;
+      const checkout = new razorpayWindow.Razorpay({
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency || "INR",
+        name: "POKHAR'S",
+        description: "Test checkout · no real charge",
+        order_id: order.razorpayOrderId,
+        prefill: { name: address.recipientName, email: user.email || "", contact: address.phone },
+        theme: { color: "#ffd45a" },
+        handler: async (response) => {
+          setPendingPayment({ orderId: order.orderId!, response });
+          try { await verifyPayment(order.orderId!, response); }
+          catch (cause) { setCheckoutError(cause instanceof Error ? cause.message : "Payment verification is pending."); }
+        },
+        modal: { ondismiss: () => setCheckoutMessage("The payment window closed. Any unpaid stock reservation will expire automatically.") },
+      });
+      checkout.on("payment.failed", (event) => {
+        setCheckoutError(event.error?.description || "The test payment did not complete. You can try again.");
+      });
+      checkout.open();
+    } catch (cause) {
+      setCheckoutError(cause instanceof Error ? cause.message : "Checkout could not be started.");
+    } finally {
+      setCheckoutBusy(false);
+    }
+  }
+
+  async function checkPaymentAgain() {
+    if (!pendingPayment) return;
+    setCheckoutBusy(true);
+    setCheckoutError(null);
+    try { await verifyPayment(pendingPayment.orderId, pendingPayment.response); }
+    catch (cause) { setCheckoutError(cause instanceof Error ? cause.message : "Payment verification is pending."); }
+    finally { setCheckoutBusy(false); }
   }
 
   function closeMobileMenu() {
@@ -493,12 +685,34 @@ export default function HomePage() {
                         : "Cart saved on this device"}
                   </p>
                   <div><span>Subtotal</span><strong>{formatPrice(subtotal)}</strong></div>
-                  <p>Shipping and taxes will be calculated at checkout.</p>
-                  <div className="checkout-notice">
-                    Checkout is not connected yet. This preview lets you test your shopping bag;
-                    payment and order placement will be added in the next build.
-                  </div>
-                  <button className="drawer-cta checkout-button" type="button" onClick={() => setCartOpen(false)}>CONTINUE EXPLORING</button>
+                  {checkoutConfig?.enabled && checkoutConfig.shippingPaise > 0 && <div><span>Test shipping</span><strong>{formatPricePaise(checkoutConfig.shippingPaise)}</strong></div>}
+                  {checkoutConfig?.enabled && <div><span>Test total</span><strong>{formatPricePaise(subtotal * 100 + checkoutConfig.shippingPaise)}</strong></div>}
+                  <p>Taxes are not included while shipping and tax settings are being decided.</p>
+                  {!user ? (
+                    <div className="checkout-notice">Sign in to choose a saved delivery address. Checkout is in test mode only; no real payment will be taken.</div>
+                  ) : savedAddresses.length === 0 ? (
+                    <div className="checkout-notice">Add a delivery address to your account before checking out. This checkout is test only; live payments are disabled.</div>
+                  ) : (
+                    <label className="checkout-address-label" htmlFor="checkout-address">DELIVER TO
+                      <select id="checkout-address" value={selectedAddressId} onChange={(event) => setSelectedAddressId(event.target.value)}>
+                        {savedAddresses.map((address) => <option key={address.id} value={address.id}>{address.recipientName} · {address.city} · {address.pincode}{address.isDefault ? " · Default" : ""}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  {checkoutError && <p className="checkout-feedback error" role="alert">{checkoutError}</p>}
+                  {checkoutMessage && <p className="checkout-feedback" role="status">{checkoutMessage}</p>}
+                  {pendingPayment && <button className="drawer-cta checkout-button secondary" type="button" disabled={checkoutBusy} onClick={() => void checkPaymentAgain()}>{checkoutBusy ? "CHECKING…" : "CHECK PAYMENT STATUS"}</button>}
+                  {user && savedAddresses.length > 0 && !checkoutConfig?.enabled && <div className="checkout-notice">Test checkout is not configured yet. Live payments are disabled.</div>}
+                  {user && savedAddresses.length === 0 && <a className="checkout-address-link" href="/account/addresses">ADD A DELIVERY ADDRESS →</a>}
+                  <button
+                    className="drawer-cta checkout-button"
+                    type="button"
+                    disabled={checkoutBusy || cartIsBusy || (Boolean(user) && (!checkoutConfig?.enabled || !selectedAddressId || savedAddresses.length === 0 || !hasLiveCatalogue))}
+                    onClick={() => void startCheckout()}
+                  >
+                    {checkoutBusy ? "PREPARING TEST CHECKOUT…" : !user ? "SIGN IN TO CHECK OUT" : checkoutConfig?.enabled ? "CONTINUE TO TEST PAYMENT" : "TEST CHECKOUT NOT CONFIGURED"}
+                  </button>
+                  <p className="checkout-live-note">TEST MODE ONLY · NO REAL PAYMENT · LIVE PAYMENTS DISABLED</p>
                 </div>
               </>
             )}

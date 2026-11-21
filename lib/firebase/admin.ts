@@ -50,14 +50,18 @@ function configuredAdmin(decoded: DecodedIdToken): boolean {
 }
 
 export async function requireAdmin(request: Request): Promise<DecodedIdToken | null> {
+  const decoded = await verifySignedInUser(request);
+  return decoded && configuredAdmin(decoded) ? decoded : null;
+}
+
+export async function verifySignedInUser(request: Request): Promise<DecodedIdToken | null> {
   const authorization = request.headers.get("authorization");
   const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!token) return null;
 
   try {
     const app = getAdminApp();
-    const decoded = await getAuth(app).verifyIdToken(token, true);
-    return configuredAdmin(decoded) ? decoded : null;
+    return await getAuth(app).verifyIdToken(token, true);
   } catch {
     return null;
   }

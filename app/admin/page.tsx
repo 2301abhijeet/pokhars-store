@@ -13,7 +13,7 @@ type AdminProduct = {
 };
 type AdminOrder = {
   id: string; orderNumber?: string; userId: string; items?: Array<{ nameSnapshot: string; quantity: number; lineTotalPaise: number }>;
-  totalPaise: number; status: string; paymentStatus: string; createdAt?: unknown;
+  totalPaise: number; status: string; paymentStatus: string; paymentMode?: string; inventoryIssue?: string; createdAt?: unknown;
 };
 type Coupon = { id: string; code: string; discountType: "percent" | "fixed"; discountValue: number; isActive: boolean };
 type ProductForm = Omit<AdminProduct, "id">;
@@ -73,7 +73,7 @@ export default function AdminPage() {
   useEffect(() => { if (!loading && user) void loadData(); else if (!user) setAuthorized(false); }, [loading, user, loadData]);
 
   const lowStock = products.filter((product) => product.stockQuantity <= 5);
-  const paidOrders = orders.filter((order) => order.paymentStatus === "paid");
+  const paidOrders = orders.filter((order) => order.paymentStatus === "paid" && order.paymentMode !== "test");
   const revenue = paidOrders.reduce((sum, order) => sum + (Number(order.totalPaise) || 0), 0);
   const paidCount = paidOrders.length;
   const activeProducts = products.filter((product) => product.isActive && product.visibility === "published").length;
@@ -144,13 +144,13 @@ export default function AdminPage() {
         {error && <div className="admin-alert error" role="alert">{error}</div>}{notice && <div className="admin-alert success" role="status">{notice}</div>}
         {tab === "overview" && <>
           <div className="admin-metrics">
-            <article><span>PAID REVENUE · LOADED ORDERS</span><strong>{money(revenue)}</strong><small>From {paidCount} order{paidCount === 1 ? "" : "s"} marked paid</small></article>
-            <article><span>PAID ORDERS</span><strong>{paidCount}</strong><small>{orders.length} actual order records loaded</small></article>
+            <article><span>LIVE PAID REVENUE · LOADED ORDERS</span><strong>{money(revenue)}</strong><small>From {paidCount} live order{paidCount === 1 ? "" : "s"} marked paid</small></article>
+            <article><span>LIVE PAID ORDERS</span><strong>{paidCount}</strong><small>{orders.length} actual order records loaded; test orders excluded</small></article>
             <article><span>PUBLISHED PRODUCTS</span><strong>{activeProducts}</strong><small>Active and visible in the storefront</small></article>
             <article className={lowStock.length ? "attention" : ""}><span>LOW STOCK · 5 OR FEWER</span><strong>{lowStock.length}</strong><small>{lowStock.length ? "Review inventory" : "All products above alert level"}</small></article>
           </div>
           <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">LATEST ACTIVITY</p><h2>Recent orders</h2></div><button className="admin-link-button" onClick={() => setTab("orders")}>View all →</button></div><OrderTable orders={orders.slice(0, 5)} busy={busy} updateOrder={updateOrder} /></section>
-          <p className="admin-footnote">Revenue uses stored order totals where paymentStatus is “paid”. Refunds, fees and settlement reconciliation are not included.</p>
+          <p className="admin-footnote">Revenue uses stored totals from non-test orders marked paid. Test orders are labeled and excluded. Refunds, fees and settlement reconciliation are not included.</p>
         </>}
         {tab === "products" && <div className="admin-products-layout">
           <section className="admin-panel admin-form-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">CATALOGUE</p><h2>{editing ? "Edit product" : "Add product"}</h2></div>{editing && <button className="admin-link-button" onClick={() => { setEditing(null); setProductForm(blankProduct); }}>Cancel</button>}</div>
@@ -180,7 +180,7 @@ function EmptyState({ children }: { children: React.ReactNode }) { return <div c
 
 function OrderTable({ orders, busy, updateOrder }: { orders: AdminOrder[]; busy: boolean; updateOrder: (order: AdminOrder, status: string) => Promise<void> }) {
   return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Order</th><th>Date</th><th>Total</th><th>Payment</th><th>Status</th><th>Update</th></tr></thead><tbody>{orders.map((order) => {
-    const nextStatus = order.paymentStatus === "paid" ? order.status === "confirmed" ? "processing" : order.status === "processing" ? "shipped" : order.status === "shipped" ? "delivered" : "" : "";
-    return <tr key={order.id}><td><strong>{order.orderNumber || order.id.slice(0, 10)}</strong><details className="admin-order-detail"><summary>{order.items?.length ?? 0} line items · Details</summary><div>{order.items?.length ? order.items.map((item, index) => <p key={`${item.nameSnapshot}-${index}`}>{item.nameSnapshot} × {item.quantity} <b>{money(item.lineTotalPaise)}</b></p>) : <p>No item snapshot recorded.</p>}<small>Customer UID: {order.userId}</small></div></details></td><td>{dateLabel(order.createdAt)}</td><td>{money(order.totalPaise)}</td><td><span className={`admin-pill ${order.paymentStatus === "paid" ? "green" : "muted"}`}>{order.paymentStatus}</span></td><td><span className="admin-pill muted">{order.status}</span></td><td>{nextStatus ? <button className="admin-row-button" disabled={busy} onClick={() => void updateOrder(order, nextStatus)}>Mark {nextStatus}</button> : <span className="admin-dash">—</span>}</td></tr>;
+    const nextStatus = order.paymentMode !== "test" && !order.inventoryIssue && order.paymentStatus === "paid" ? order.status === "confirmed" ? "processing" : order.status === "processing" ? "shipped" : order.status === "shipped" ? "delivered" : "" : "";
+    return <tr key={order.id}><td><strong>{order.orderNumber || order.id.slice(0, 10)}</strong>{order.paymentMode === "test" && <span className="admin-pill muted">TEST</span>}{order.inventoryIssue && <span className="admin-pill muted">INVENTORY REVIEW</span>}<details className="admin-order-detail"><summary>{order.items?.length ?? 0} line items · Details</summary><div>{order.items?.length ? order.items.map((item, index) => <p key={`${item.nameSnapshot}-${index}`}>{item.nameSnapshot} × {item.quantity} <b>{money(item.lineTotalPaise)}</b></p>) : <p>No item snapshot recorded.</p>}{order.inventoryIssue && <small>{order.inventoryIssue}</small>}<small>Customer UID: {order.userId}</small></div></details></td><td>{dateLabel(order.createdAt)}</td><td>{money(order.totalPaise)}</td><td><span className={`admin-pill ${order.paymentStatus === "paid" && order.paymentMode !== "test" ? "green" : "muted"}`}>{order.paymentMode === "test" ? "test paid" : order.paymentStatus}</span></td><td><span className="admin-pill muted">{order.status}</span></td><td>{nextStatus ? <button className="admin-row-button" disabled={busy} onClick={() => void updateOrder(order, nextStatus)}>Mark {nextStatus}</button> : <span className="admin-dash">—</span>}</td></tr>;
   })}</tbody></table>{orders.length === 0 && <EmptyState>No order records exist yet. Orders and sales will appear when a secure order backend is added.</EmptyState>}</div>;
 }

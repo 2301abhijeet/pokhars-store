@@ -22,6 +22,12 @@ export async function PATCH(request: Request, context: Context) {
   if (order?.paymentStatus !== "paid") {
     return jsonError("Only paid orders can move through fulfilment statuses.", 409);
   }
+  if (order.paymentMode === "test") {
+    return jsonError("Test payment orders cannot enter fulfilment.", 409);
+  }
+  if (order.inventoryIssue) {
+    return jsonError("Resolve the inventory issue before moving this order into fulfilment.", 409);
+  }
   if (!manageableStatuses.has(String(body.status)) ||
       !(currentStatus === "confirmed" || currentStatus === "processing" || currentStatus === "shipped") ||
       (body.status === "processing" && currentStatus !== "confirmed") ||

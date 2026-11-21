@@ -72,6 +72,12 @@ export type OrderDocument = {
   totalPaise: number;
   status: OrderStatus;
   paymentStatus: "created" | "paid" | "failed" | "refunded";
+  paymentMode?: "test" | "live";
+  paymentId?: string;
+  razorpayOrderId?: string;
+  stockReserved?: boolean;
+  reservationExpiresAt?: Timestamp;
+  inventoryIssue?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
