@@ -49,6 +49,17 @@ The `.env.example` value is for local development. Keep the Vercel value separat
 
 Google is enabled as a sign-in provider. `localhost` and `pokhars-store.vercel.app` are authorized; add any custom production domain under **Authentication → Settings → Authorized domains** in the Firebase Console.
 
+## Development catalogue mode
+
+Keep `NEXT_PUBLIC_CATALOGUE_DEMO_MODE=true` while the site uses sample product names, prices, pack photos or placeholder food-label details. In this mode:
+- Active/published sample products remain visible in the storefront and product detail pages.
+- The storefront and admin clearly mark the catalogue as **DEMO · NOT FOR SALE**.
+- Admin can save and publish sample data without the production food-label checks.
+- Cart interactions are available for UI testing, but the checkout API and Razorpay test-payment configuration are disabled server-side.
+- No sample product may be used to create a customer order or payment.
+
+Before launch, replace every sample field/image with final approved product information, verify the actual pack photo and FSSAI details, then set `NEXT_PUBLIC_CATALOGUE_DEMO_MODE=false` (or remove it) in Vercel and redeploy. Strict publication checks automatically resume. Never use demo mode to accept customer orders.
+
 ## Security principles
 
 - Never expose payment secrets in browser code.

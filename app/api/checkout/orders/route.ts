@@ -14,6 +14,9 @@ function validRequestId(value: unknown): value is string {
 }
 
 export async function POST(request: Request) {
+  if (process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "true") {
+    return jsonError("POKHAR'S is currently in demo mode. Sample products are for website testing only; checkout and payments are disabled.", 503);
+  }
   const user = await verifySignedInUser(request);
   if (!user) return jsonError("Sign in before checkout.", 401);
   const config = checkoutConfig();

@@ -10,5 +10,6 @@ export async function GET() {
     keyId: config.keyId,
     shippingPaise: config.shippingPaise,
     livePaymentsEnabled: false,
+    demoMode: process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "true",
   }, { headers: { "cache-control": "no-store" } });
 }
