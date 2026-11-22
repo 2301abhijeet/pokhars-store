@@ -64,6 +64,7 @@ function mapProduct(id: string, data: Record<string, unknown>): Product | null {
       : (description || flavour),
     ...(typeof data.tag === "string" && data.tag.trim() ? { tag: data.tag } : {}),
     ...(typeof data.imageUrl === "string" && data.imageUrl.trim() ? { imageUrl: data.imageUrl } : {}),
+    ...(Number.isInteger(data.mrpPaise) && Number(data.mrpPaise) > pricePaise ? { mrp: Number(data.mrpPaise) / 100 } : {}),
   };
 }
 

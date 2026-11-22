@@ -535,3 +535,8 @@ a { color: inherit; text-decoration: none; }
   .address-field-wide { grid-column: auto; }
   .saved-address-lines { min-height: auto; }
 }
+
+/* Render real, approved pack photography when a product image URL is supplied. */
+.product-photo { position: relative; z-index: 1; width: auto; height: min(194px, 90%); max-width: 86%; object-fit: contain; filter: drop-shadow(8px 11px 12px rgba(34,37,22,.18)); transition: transform .2s ease; }
+.product-card:hover .product-photo { transform: translateY(-3px) rotate(1deg); }
+.product-mrp { margin-left: 7px; color: #7d8a7d; font-size: 10px; font-weight: 500; }

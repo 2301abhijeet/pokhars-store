@@ -13,6 +13,7 @@ export type Product = {
   tagline: string;
   tag?: string;
   imageUrl?: string;
+  mrp?: number;
 };
 
 // Preview catalogue only. Replace flavour names, pack details, ingredients and

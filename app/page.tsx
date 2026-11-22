@@ -518,20 +518,25 @@ export default function HomePage() {
                 </div>
                 <div className="product-visual" style={{ "--flavour": product.accent, "--flavour-ink": product.ink } as React.CSSProperties}>
                   {product.tag && <span className="product-tag">{product.tag}</span>}
-                  <div className="product-pack">
-                    <div className="pack-crimp" />
-                    <div className="pack-brand">POKHAR’S</div>
-                    <div className="pack-dots"><i /><i /><i /><i /></div>
-                    <div className="pack-name">{product.name}</div>
-                    <div className="pack-description">ROASTED MAKHANA</div>
-                    <div className="pack-art">{product.symbol}</div>
-                    <div className="pack-weight">{product.weight}</div>
-                  </div>
+                  {product.imageUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img className="product-photo" src={product.imageUrl} alt={`${product.name} roasted makhana pack`} loading="lazy" decoding="async" />
+                  ) : (
+                    <div className="product-pack">
+                      <div className="pack-crimp" />
+                      <div className="pack-brand">POKHAR’S</div>
+                      <div className="pack-dots"><i /><i /><i /><i /></div>
+                      <div className="pack-name">{product.name}</div>
+                      <div className="pack-description">ROASTED MAKHANA</div>
+                      <div className="pack-art">{product.symbol}</div>
+                      <div className="pack-weight">{product.weight}</div>
+                    </div>
+                  )}
                 </div>
                 <div className="product-info">
                   <p>{product.tagline}</p>
                   <div className="product-buy-row">
-                    <div><strong>{formatPrice(product.price)}</strong><span> / {product.weight}</span></div>
+                    <div><strong>{formatPrice(product.price)}</strong>{product.mrp && product.mrp > product.price ? <del className="product-mrp">{formatPrice(product.mrp)}</del> : null}<span> / {product.weight}</span></div>
                     <button
                       className="add-button"
                       type="button"
