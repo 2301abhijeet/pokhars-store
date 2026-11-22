@@ -225,8 +225,10 @@ export default function HomePage() {
   // Firestore catalogue. Never fall back to demonstration SKUs in production.
   const catalogueProducts = firestoreProducts;
   const hasLiveCatalogue = firestoreProducts.length > 0;
-  const catalogueMessage = hasLiveCatalogue
-    ? "LIVE CATALOGUE · FIRESTORE CONNECTED"
+  const catalogueMessage = isDemoCatalogueMode
+    ? "DEMO CATALOGUE · SAMPLE PRODUCTS ONLY · CHECKOUT DISABLED"
+    : hasLiveCatalogue
+      ? "LIVE CATALOGUE · FIRESTORE CONNECTED"
     : catalogueError
       ? "LIVE CATALOGUE TEMPORARILY UNAVAILABLE"
       : "OUR APPROVED FLAVOUR CATALOGUE IS BEING PREPARED";
@@ -491,6 +493,12 @@ export default function HomePage() {
         <div className={hasLiveCatalogue ? "catalogue-note is-live" : "catalogue-note"}>
           <span>✳</span> {catalogueMessage}
         </div>
+        {isDemoCatalogueMode && (
+          <div className="demo-store-banner" role="note">
+            <strong>DEVELOPMENT STORE · NOT FOR SALE</strong>
+            <span>These two product listings use sample images, prices and label details while we build the website. No customer orders or payments can be placed.</span>
+          </div>
+        )}
         {catalogueError && (
           <p className="catalogue-disclaimer" role="status">
             Firestore catalogue is temporarily unavailable. Showing preview products instead.
@@ -530,7 +538,7 @@ export default function HomePage() {
                     <h3>{product.name}</h3>
                   </div>
                   <div className="product-visual" style={{ "--flavour": product.accent, "--flavour-ink": product.ink } as React.CSSProperties}>
-                    {product.tag && <span className="product-tag">{product.tag}</span>}
+                    {(isDemoCatalogueMode || product.tag) && <span className="product-tag">{isDemoCatalogueMode ? "DEMO · NOT FOR SALE" : product.tag}</span>}
                     {product.imageUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img className="product-photo" src={product.imageUrl} alt={product.name + " pack"} loading="lazy" decoding="async" />
@@ -704,8 +712,15 @@ export default function HomePage() {
                         ? (cloudCartReady ? "✓ Cart synced to your account" : "Syncing your cart…")
                         : "Cart saved on this device"}
                   </p>
-                  <div><span>Subtotal</span><strong>{formatPrice(subtotal)}</strong></div>
-                  {checkoutConfig?.enabled && checkoutConfig.shippingPaise > 0 && <div><span>Test shipping</span><strong>{formatPricePaise(checkoutConfig.shippingPaise)}</strong></div>}
+                  <div><span>{isDemoCatalogueMode ? "Demo subtotal · sample only" : "Subtotal"}</span><strong>{formatPrice(subtotal)}</strong></div>
+{isDemoCatalogueMode ? (
+                    <div className="checkout-notice demo-checkout-notice">
+                      <strong>DEMO BAG · CHECKOUT DISABLED</strong>
+                      <span>Sample prices and product details are for website testing only. We are not accepting customer orders or payments yet.</span>
+                    </div>
+                  ) : (
+                    <>
+                                        {checkoutConfig?.enabled && checkoutConfig.shippingPaise > 0 && <div><span>Test shipping</span><strong>{formatPricePaise(checkoutConfig.shippingPaise)}</strong></div>}
                   {checkoutConfig?.enabled && <div><span>Test total</span><strong>{formatPricePaise(subtotal * 100 + checkoutConfig.shippingPaise)}</strong></div>}
                   <p>Taxes are not included while shipping and tax settings are being decided.</p>
                   {!user ? (
@@ -733,6 +748,8 @@ export default function HomePage() {
                     {checkoutBusy ? "PREPARING TEST CHECKOUT…" : !user ? "SIGN IN TO CHECK OUT" : checkoutConfig?.enabled ? "CONTINUE TO TEST PAYMENT" : "TEST CHECKOUT NOT CONFIGURED"}
                   </button>
                   <p className="checkout-live-note">TEST MODE ONLY · NO REAL PAYMENT · LIVE PAYMENTS DISABLED</p>
+                    </>
+                  )}
                 </div>
               </>
             )}

@@ -10,6 +10,8 @@ import type { CartQuantities } from "@/lib/firebase/cart";
 import { subscribeToPublishedProducts } from "@/lib/firebase/catalogue";
 import type { Product } from "@/lib/products";
 
+const isDemoCatalogueMode = process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "true";
+
 function money(value: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(value);
 }
@@ -207,14 +209,15 @@ export default function ProductDetailPage() {
           <Link href="/#flavours">FLAVOURS</Link><Link href="/#story">OUR STORY</Link><Link href="/#heritage">MITHILA VIBES</Link>
         </nav>
         <AccountMenu />
-        <Link className="product-detail-bag" href="/?openBag=1">YOUR BAG ↗</Link>
+        <Link className="product-detail-bag" href="/?openBag=1">{isDemoCatalogueMode ? "DEMO BAG ↗" : "YOUR BAG ↗"}</Link>
       </header>
 
+      {isDemoCatalogueMode && <div className="demo-store-banner product-demo-banner" role="note"><strong>DEMO PRODUCT · NOT FOR SALE</strong><span>This is a sample listing for website development. Product image, price and food-label details are illustrative, not a final retail offer or approved food label.</span></div>}
       <section className="product-detail-main">
         <p className="product-breadcrumb"><Link href="/">HOME</Link><span> / </span><Link href="/#flavours">FLAVOURS</Link><span> / </span><strong>{product.name.toUpperCase()}</strong></p>
         <div className="product-detail-grid">
           <div className="product-detail-media" style={{ "--flavour": product.accent } as React.CSSProperties}>
-            {product.tag && <span className="product-detail-tag" style={{ position: "absolute", top: 22, left: 22 }}>{product.tag}</span>}
+            {(isDemoCatalogueMode || product.tag) && <span className="product-detail-tag" style={{ position: "absolute", top: 22, left: 22 }}>{isDemoCatalogueMode ? "DEMO · NOT FOR SALE" : product.tag}</span>}
             {product.imageUrl && !imageFailed ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img className="product-detail-image" src={product.imageUrl} alt={product.name + " packaging"} onError={() => setImageFailed(true)} />
@@ -242,7 +245,7 @@ export default function ProductDetailPage() {
             </div>
 
             <button className="product-detail-add" type="button" disabled={!cartReady || adding || cartQuantity >= 20} onClick={() => void addToBag()}>
-              {adding ? "ADDING…" : cartQuantity >= 20 ? "MAXIMUM QUANTITY ADDED" : "ADD TO YOUR BAG"} <b>↗</b>
+              {adding ? "ADDING…" : cartQuantity >= 20 ? "MAXIMUM QUANTITY ADDED" : isDemoCatalogueMode ? "ADD TO DEMO BAG" : "ADD TO YOUR BAG"} <b>↗</b>
             </button>
             {feedback && <p className="product-detail-feedback" role="status">{feedback}</p>}
             {feedback && <Link className="product-detail-viewbag" href="/?openBag=1">VIEW YOUR BAG ↗</Link>}
