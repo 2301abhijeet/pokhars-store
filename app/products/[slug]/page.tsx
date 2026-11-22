@@ -134,7 +134,7 @@ export default function ProductDetailPage() {
     })();
 
     return () => { active = false; unsubscribe?.(); };
-  }, [product?.id, authLoading, user?.uid]);
+  }, [product?.id, authLoading, user]);
 
   async function addToBag() {
     if (!product || !cartReady) return;

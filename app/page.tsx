@@ -521,8 +521,7 @@ export default function HomePage() {
               <strong>Fresh flavours are on the way.</strong>
               <span>We’re getting the approved POKHAR’S products ready for the shop. Please check back soon.</span>
             </div>
-          ) : visibleProducts.map((product, productIndex) => {
-            const day = dayNames[productIndex] ?? "EVERYDAY";
+          ) : visibleProducts.map((product) => {
             return (
               <article className="product-card" key={product.id}>
                 <Link className="product-card-open" href={"/products/" + encodeURIComponent(product.slug || product.id)} aria-label={"View details for " + product.name}>
