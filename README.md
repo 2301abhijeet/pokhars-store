@@ -77,6 +77,18 @@ The Admin SDK bypasses Firestore Security Rules, so every route performs server-
 
 Sales are calculated only from non-test order documents returned by the admin API and marked `paymentStatus: "paid"`. Test orders are labeled and excluded from sales and fulfilment. The current dashboard loads the latest 200 orders, so the overview is a recent loaded-order view, not a lifetime accounting ledger.
 
+### Product image uploads with ImageKit
+
+The Admin → Products form supports JPG, PNG and WebP pack photos up to 8 MB. Uploads are sent to the ImageKit folder `/pokhars/products`. The server checks the Firebase admin role before issuing a short-lived upload signature; the ImageKit private key never reaches the browser. The signed upload response fills the product image URL field. Press **Save product** to persist that URL in Firestore.
+
+In Vercel → Project Settings → Environment Variables, add the following server-side values to Development, Preview and Production, then redeploy:
+
+- `IMAGEKIT_PUBLIC_KEY` — ImageKit public API key
+- `IMAGEKIT_PRIVATE_KEY` — ImageKit private API key (secret; never add a `NEXT_PUBLIC_` prefix)
+- `NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT` — optional delivery endpoint for future image transformations
+
+Do not paste private keys into ChatGPT or GitHub. The application returns a clear setup error until the required ImageKit keys have been added.
+
 ## Test checkout setup
 
 Checkout is deliberately **test-only**. The server rejects live Razorpay keys and disables checkout on Vercel Production, always tags test orders with `paymentMode: "test"`, and the dashboard excludes them from live sales and fulfilment. A test payment records an explicitly labeled test order but never changes storefront stock. Do not add live Razorpay credentials. Shipping and tax policy is undecided: test shipping defaults to ₹0 and tax is not included.

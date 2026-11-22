@@ -69,6 +69,8 @@ export default function AdminPage() {
   const [couponType, setCouponType] = useState<"percent" | "fixed">("percent");
   const [couponValue, setCouponValue] = useState(10);
   const [busy, setBusy] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadProgress, setImageUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -104,6 +106,88 @@ export default function AdminPage() {
   const paidCount = paidOrders.length;
   const activeProducts = products.filter((product) => product.isActive && product.visibility === "published").length;
   const publishGaps = missingPublishDetails(productForm);
+
+  async function uploadProductImage(file: File) {
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      setError("Choose a JPG, PNG or WebP product photo.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setError("Product photos must be 8 MB or smaller.");
+      return;
+    }
+
+    setImageUploading(true);
+    setImageUploadProgress(0);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const token = await getFirebaseAuth()?.currentUser?.getIdToken();
+      if (!token) throw new Error("Sign in with the owner account to upload product photos.");
+
+      const authResponse = await fetch("/api/admin/imagekit-auth", {
+        method: "GET",
+        headers: { authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const authData = await authResponse.json().catch(() => ({}));
+      if (!authResponse.ok) {
+        throw new Error(authData.error || "Image upload is not configured yet.");
+      }
+
+      const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+      const baseName = (productForm.name.trim() || file.name.replace(/\\.[^.]+$/, ""))
+        .normalize("NFKD")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "pokhars-product";
+      const form = new FormData();
+      form.append("file", file);
+      form.append("fileName", `${baseName}-${Date.now()}.${extension}`);
+      form.append("folder", "/pokhars/products");
+      form.append("useUniqueFileName", "true");
+      form.append("isPrivateFile", "false");
+      form.append("tags", "pokhars,product");
+
+      for (const key of ["token", "expire", "signature", "publicKey"] as const) {
+        if (typeof authData[key] !== "string" && typeof authData[key] !== "number") {
+          throw new Error("Image upload authorisation is incomplete. Check the ImageKit keys in Vercel.");
+        }
+        form.append(key, String(authData[key]));
+      }
+
+      const uploaded = await new Promise<{ url: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "https://upload.imagekit.io/api/v1/files/upload");
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            setImageUploadProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        };
+        xhr.onerror = () => reject(new Error("ImageKit upload failed due to a network error. Please retry."));
+        xhr.onload = () => {
+          let data: { url?: string; message?: string; help?: string } = {};
+          try { data = JSON.parse(xhr.responseText) as typeof data; } catch { /* handled below */ }
+          if (xhr.status < 200 || xhr.status >= 300 || !data.url) {
+            reject(new Error(data.message || data.help || "ImageKit could not upload this photo."));
+            return;
+          }
+          resolve({ url: data.url });
+        };
+        xhr.send(form);
+      });
+
+      setProductForm((current) => ({ ...current, imageUrl: uploaded.url }));
+      setNotice("Product photo uploaded. Save the product to attach this image to its catalogue record.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Product photo could not be uploaded.");
+    } finally {
+      setImageUploading(false);
+      setImageUploadProgress(0);
+    }
+  }
 
   async function saveProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(null); setNotice(null);
@@ -195,8 +279,36 @@ export default function AdminPage() {
               </div>
               <div className="admin-form-row"><label>Net weight (g)<input required type="number" min="1" step="1" value={productForm.netWeightGrams} onChange={(e) => setProductForm({ ...productForm, netWeightGrams: Number(e.target.value) })} /></label><label>Stock units<input required type="number" min="0" step="1" value={productForm.stockQuantity} onChange={(e) => setProductForm({ ...productForm, stockQuantity: Number(e.target.value) })} /></label></div>
               <div className="admin-form-section-title">Product photography</div>
-              <label>Pack image URL<input type="url" placeholder="https://…" value={productForm.imageUrl ?? ""} onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })} /><small>Paste an HTTPS ImageKit or other image URL. Use the real approved pack photo.</small></label>
-              {productForm.imageUrl && <div className="admin-image-preview"><span>IMAGE URL ADDED</span><a href={productForm.imageUrl} target="_blank" rel="noreferrer">Open image ↗</a></div>}
+              <label>Upload real pack photo
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={imageUploading || busy}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = "";
+                    if (file) void uploadProductImage(file);
+                  }}
+                />
+                <small>JPG, PNG or WebP · maximum 8 MB. Uploads securely to ImageKit under /pokhars/products.</small>
+              </label>
+              {imageUploading && (
+                <div className="admin-image-upload-progress" role="status">
+                  <span>Uploading product photo… {imageUploadProgress}%</span>
+                  <div><i style={{ width: `${imageUploadProgress}%` }} /></div>
+                </div>
+              )}
+              {productForm.imageUrl && (
+                <div className="admin-image-preview">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={productForm.imageUrl} alt="Current product pack preview" />
+                  <div><strong>PACK PHOTO READY</strong><a href={productForm.imageUrl} target="_blank" rel="noreferrer">Open original ↗</a></div>
+                </div>
+              )}
+              <label>Or paste an existing HTTPS image URL
+                <input type="url" placeholder="https://…" value={productForm.imageUrl ?? ""} onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })} />
+                <small>The URL is saved with the product when you press Save product.</small>
+              </label>
               <div className="admin-form-section-title">Ingredients and food-label information</div>
               <label>Ingredients<textarea required={productForm.visibility === "published" && productForm.isActive} rows={3} maxLength={3000} value={productForm.ingredients ?? ""} onChange={(e) => setProductForm({ ...productForm, ingredients: e.target.value })} placeholder="Enter the approved ingredient statement from the finished pack." /></label>
               <label>Allergen declaration<textarea required={productForm.visibility === "published" && productForm.isActive} rows={2} maxLength={1200} value={productForm.allergenInfo ?? ""} onChange={(e) => setProductForm({ ...productForm, allergenInfo: e.target.value })} placeholder="Enter the verified allergen statement. Do not guess." /></label>
@@ -213,7 +325,7 @@ export default function AdminPage() {
               <label>Short product description<textarea rows={3} maxLength={2000} value={productForm.description ?? ""} onChange={(e) => setProductForm({ ...productForm, description: e.target.value })} placeholder="A short, factual product description." /></label>
               {productForm.visibility === "published" && productForm.isActive && publishGaps.length > 0 && <div className="admin-alert warning"><strong>Not ready to publish.</strong> Complete: {publishGaps.join(", ")}. Use approved product and pack information only.</div>}
               <div className="admin-form-row"><label className="admin-check"><input type="checkbox" checked={productForm.isActive} onChange={(e) => setProductForm({ ...productForm, isActive: e.target.checked })} /> Active</label><label>Visibility<select value={productForm.visibility} onChange={(e) => setProductForm({ ...productForm, visibility: e.target.value as ProductForm["visibility"] })}><option value="draft">Draft</option><option value="published">Published</option></select></label></div>
-              <button className="admin-primary" disabled={busy}>{busy ? "Saving…" : editing ? "Save changes" : "Create product"}</button>
+              <button className="admin-primary" disabled={busy || imageUploading}>{busy ? "Saving…" : editing ? "Save changes" : "Create product"}</button>
             </form>
           </section>
           <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">{products.length} TOTAL</p><h2>Products</h2></div></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th /></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><strong>{product.name}</strong><small>{product.sku ? product.sku + " · " : ""}{product.flavour} · {product.category} · {product.netWeightGrams} g</small></td><td><strong>{money(product.pricePaise)}</strong>{product.mrpPaise && product.mrpPaise > product.pricePaise ? <small>MRP {money(product.mrpPaise)}</small> : null}</td><td>{product.stockQuantity}</td><td><span className={`admin-pill ${product.visibility === "published" && product.isActive ? "green" : "muted"}`}>{product.isActive ? product.visibility : "inactive"}</span>{missingPublishDetails(product).length > 0 && <small>{missingPublishDetails(product).length} publish details missing</small>}</td><td className="admin-row-actions"><button onClick={() => editProduct(product)}>Edit</button><button onClick={() => void archiveProduct(product)}>{product.isActive ? "Hide" : "Hidden"}</button></td></tr>)}</tbody></table>{products.length === 0 && <EmptyState>No product documents were found.</EmptyState>}</div></section>

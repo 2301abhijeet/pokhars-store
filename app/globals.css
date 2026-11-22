@@ -626,3 +626,13 @@ a { color: inherit; text-decoration: none; }
   .product-related-image { height: 140px; }
   .product-related-name { font-size: 15px; }
 }
+
+
+/* Admin ImageKit uploader */
+.admin-image-preview { display: flex; align-items: center; gap: 14px; min-height: 94px; }
+.admin-image-preview img { display: block; width: 80px; height: 88px; object-fit: contain; border-radius: 10px; background: #fff; }
+.admin-image-preview div { display: flex; flex-direction: column; gap: 8px; }
+.admin-image-preview strong { color: var(--green); font: 900 8px var(--font-body); letter-spacing: .1em; }
+.admin-image-upload-progress { display: grid; gap: 8px; color: var(--green); font-size: 10px; font-weight: 700; }
+.admin-image-upload-progress > div { width: 100%; height: 6px; overflow: hidden; border-radius: 999px; background: rgba(5,75,54,.12); }
+.admin-image-upload-progress i { display: block; height: 100%; border-radius: inherit; background: var(--green); transition: width .15s ease; }
