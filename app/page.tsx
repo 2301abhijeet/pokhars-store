@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type { Product } from "@/lib/products";
 import { subscribeToPublishedProducts } from "@/lib/firebase/catalogue";
 import { AccountMenu } from "@/components/auth/account-menu";
@@ -44,7 +45,6 @@ function loadRazorpayCheckout(): Promise<boolean> {
 }
 
 const filters: Filter[] = ["All", "Classic", "Masala", "Fresh", "Cheesy", "Premium"];
-const dayNames = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 
 function formatPrice(value: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -114,6 +114,16 @@ export default function HomePage() {
     }
     setCartReady(true);
   }, []);
+
+  // Product detail pages can send shoppers back here with their bag ready to open.
+  useEffect(() => {
+    if (!cartReady || authLoading || (user && !cloudCartReady)) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("openBag") !== "1") return;
+    setCartOpen(true);
+    url.searchParams.delete("openBag");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+  }, [cartReady, authLoading, user, cloudCartReady]);
 
   // Keep guest carts on this device. Once authenticated, Firestore is the source of truth.
   useEffect(() => {
@@ -515,36 +525,41 @@ export default function HomePage() {
             const day = dayNames[productIndex] ?? "EVERYDAY";
             return (
               <article className="product-card" key={product.id}>
-                <div className="card-heading" style={{ "--flavour": product.accent, "--flavour-ink": product.ink } as React.CSSProperties}>
-                  <p>{product.mood}</p>
-                  <h3>{day}</h3>
-                </div>
-                <div className="product-visual" style={{ "--flavour": product.accent, "--flavour-ink": product.ink } as React.CSSProperties}>
-                  {product.tag && <span className="product-tag">{product.tag}</span>}
-                  {product.imageUrl ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img className="product-photo" src={product.imageUrl} alt={`${product.name} roasted makhana pack`} loading="lazy" decoding="async" />
-                  ) : (
-                    <div className="product-pack">
-                      <div className="pack-crimp" />
-                      <div className="pack-brand">POKHAR’S</div>
-                      <div className="pack-dots"><i /><i /><i /><i /></div>
-                      <div className="pack-name">{product.name}</div>
-                      <div className="pack-description">ROASTED MAKHANA</div>
-                      <div className="pack-art">{product.symbol}</div>
-                      <div className="pack-weight">{product.weight}</div>
-                    </div>
-                  )}
-                </div>
+                <Link className="product-card-open" href={"/products/" + encodeURIComponent(product.slug || product.id)} aria-label={"View details for " + product.name}>
+                  <div className="card-heading" style={{ "--flavour": product.accent, "--flavour-ink": product.ink } as React.CSSProperties}>
+                    <p>{product.mood}</p>
+                    <h3>{product.name}</h3>
+                  </div>
+                  <div className="product-visual" style={{ "--flavour": product.accent, "--flavour-ink": product.ink } as React.CSSProperties}>
+                    {product.tag && <span className="product-tag">{product.tag}</span>}
+                    {product.imageUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img className="product-photo" src={product.imageUrl} alt={product.name + " pack"} loading="lazy" decoding="async" />
+                    ) : (
+                      <div className="product-pack">
+                        <div className="pack-crimp" />
+                        <div className="pack-brand">POKHAR’S</div>
+                        <div className="pack-dots"><i /><i /><i /><i /></div>
+                        <div className="pack-name">{product.name}</div>
+                        <div className="pack-description">ROASTED MAKHANA</div>
+                        <div className="pack-art">{product.symbol}</div>
+                        <div className="pack-weight">{product.weight}</div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="product-card-caption">
+                    <span>{product.tagline}</span>
+                    <b>VIEW DETAILS ↗</b>
+                  </div>
+                </Link>
                 <div className="product-info">
-                  <p>{product.tagline}</p>
                   <div className="product-buy-row">
                     <div><strong>{formatPrice(product.price)}</strong>{product.mrp && product.mrp > product.price ? <del className="product-mrp">{formatPrice(product.mrp)}</del> : null}<span> / {product.weight}</span></div>
                     <button
                       className="add-button"
                       type="button"
                       disabled={cartIsBusy}
-                      aria-label={`Add ${product.name} to bag`}
+                      aria-label={"Add " + product.name + " to bag"}
                       onClick={() => addToCart(product.id)}
                     >
                       ADD <b>+</b>
@@ -557,7 +572,7 @@ export default function HomePage() {
         </div>
 
         <p className="catalogue-disclaimer">
-          Product cards are shown only after the approved pack photo and verified food-label information have been added in the store admin.
+          Tap any flavour to explore its full details, ingredients, nutrition and other POKHAR’S picks.
         </p>
 
         <div className="all-flavours-card">

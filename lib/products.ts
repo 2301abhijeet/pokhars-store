@@ -14,6 +14,17 @@ export type Product = {
   tag?: string;
   imageUrl?: string;
   mrp?: number;
+  slug?: string;
+  sku?: string;
+  ingredients?: string;
+  allergenInfo?: string;
+  nutritionInfo?: string;
+  storageInstructions?: string;
+  shelfLife?: string;
+  manufacturerName?: string;
+  manufacturerAddress?: string;
+  fssaiLicenseNumber?: string;
+  countryOfOrigin?: string;
 };
 
 // Preview catalogue only. Replace flavour names, pack details, ingredients and
