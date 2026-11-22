@@ -99,7 +99,11 @@ export async function POST(request: Request) {
         const data = snapshot.data()!;
         const price = Number(data.pricePaise);
         const stock = Number(data.stockQuantity);
-        if (data.isActive !== true || data.visibility !== "published") throw new Error("PRODUCT_UNAVAILABLE");
+        const publishFields = ["imageUrl", "ingredients", "allergenInfo", "nutritionInfo", "manufacturerName", "manufacturerAddress", "fssaiLicenseNumber"];
+        const hasVerifiedPublishDetails = publishFields.every((field) =>
+          typeof data[field] === "string" && (data[field] as string).trim().length > 0
+        );
+        if (data.isActive !== true || data.visibility !== "published" || !hasVerifiedPublishDetails) throw new Error("PRODUCT_UNAVAILABLE");
         if (!Number.isSafeInteger(price) || price < 1 || !Number.isSafeInteger(stock) || stock < item.quantity) throw new Error("INSUFFICIENT_STOCK");
         const lineTotal = price * item.quantity;
         if (!Number.isSafeInteger(lineTotal)) throw new Error("TOTAL_INVALID");

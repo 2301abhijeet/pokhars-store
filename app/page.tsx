@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { products as previewProducts, type Product } from "@/lib/products";
+import type { Product } from "@/lib/products";
 import { subscribeToPublishedProducts } from "@/lib/firebase/catalogue";
 import { AccountMenu } from "@/components/auth/account-menu";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -69,7 +69,7 @@ export default function HomePage() {
   const [cartOpen, setCartOpen] = useState(false);
   const [cartReady, setCartReady] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [firestoreProducts, setFirestoreProducts] = useState<Product[] | null>(null);
+  const [firestoreProducts, setFirestoreProducts] = useState<Product[]>([]);
   const [catalogueError, setCatalogueError] = useState<string | null>(null);
   const [cloudCartReady, setCloudCartReady] = useState(false);
   const [cartSyncError, setCartSyncError] = useState<string | null>(null);
@@ -211,17 +211,15 @@ export default function HomePage() {
     return () => { active = false; };
   }, [cartOpen, user]);
 
-  const catalogueProducts = firestoreProducts && firestoreProducts.length > 0
-    ? firestoreProducts
-    : previewProducts;
-  const hasLiveCatalogue = Boolean(firestoreProducts && firestoreProducts.length > 0);
+  // Only products with complete, verified publish details are returned by the
+  // Firestore catalogue. Never fall back to demonstration SKUs in production.
+  const catalogueProducts = firestoreProducts;
+  const hasLiveCatalogue = firestoreProducts.length > 0;
   const catalogueMessage = hasLiveCatalogue
     ? "LIVE CATALOGUE · FIRESTORE CONNECTED"
     : catalogueError
-      ? "PREVIEW CATALOGUE · LIVE DATA NEEDS ATTENTION"
-      : firestoreProducts === null
-        ? "CONNECTING TO FIRESTORE CATALOGUE…"
-        : "PREVIEW CATALOGUE · ADD PUBLISHED PRODUCTS TO FIRESTORE";
+      ? "LIVE CATALOGUE TEMPORARILY UNAVAILABLE"
+      : "OUR APPROVED FLAVOUR CATALOGUE IS BEING PREPARED";
 
   const visibleProducts = useMemo(
     () => filter === "All" ? catalogueProducts : catalogueProducts.filter((product) => product.category === filter),
@@ -508,7 +506,12 @@ export default function HomePage() {
         </div>
 
         <div className="product-grid">
-          {visibleProducts.map((product, productIndex) => {
+          {visibleProducts.length === 0 ? (
+            <div className="catalogue-empty">
+              <strong>Fresh flavours are on the way.</strong>
+              <span>We’re getting the approved POKHAR’S products ready for the shop. Please check back soon.</span>
+            </div>
+          ) : visibleProducts.map((product, productIndex) => {
             const day = dayNames[productIndex] ?? "EVERYDAY";
             return (
               <article className="product-card" key={product.id}>
@@ -554,9 +557,7 @@ export default function HomePage() {
         </div>
 
         <p className="catalogue-disclaimer">
-          These are demonstration products and illustrative packaging. Final flavours,
-          ingredients, nutrition details, pack artwork and selling prices will be updated
-          from POKHAR’S approved product catalogue.
+          Product cards are shown only after the approved pack photo and verified food-label information have been added in the store admin.
         </p>
 
         <div className="all-flavours-card">

@@ -33,10 +33,14 @@ function mapProduct(id: string, data: Record<string, unknown>): Product | null {
   const name = typeof data.name === "string" ? data.name.trim() : "";
   const pricePaise = Number(data.pricePaise);
   const grams = Number(data.netWeightGrams);
+  const publishFields = ["imageUrl", "ingredients", "allergenInfo", "nutritionInfo", "manufacturerName", "manufacturerAddress", "fssaiLicenseNumber"];
+  const hasVerifiedPublishDetails = publishFields.every((field) =>
+    typeof data[field] === "string" && (data[field] as string).trim().length > 0
+  );
 
   // Ignore malformed or incomplete product documents rather than showing
   // an empty title, NaN price, or invalid pack size to shoppers.
-  if (!name || !Number.isFinite(pricePaise) || pricePaise <= 0 || !Number.isFinite(grams) || grams <= 0) {
+  if (!name || !Number.isFinite(pricePaise) || pricePaise <= 0 || !Number.isFinite(grams) || grams <= 0 || !hasVerifiedPublishDetails) {
     return null;
   }
 
