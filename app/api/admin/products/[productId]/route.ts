@@ -14,7 +14,14 @@ export async function PATCH(request: Request, context: Context) {
   const problem = validateProduct(body);
   if (problem) return jsonError(problem, 400);
   if (!isRecord(body)) return jsonError("Product details are required.", 400);
-  const product = body as { name: string; description: string; flavour: string; category: string; imageUrl: string; pricePaise: number; netWeightGrams: number; stockQuantity: number; isActive: boolean; visibility: "draft" | "published"; sortOrder?: number };
+  const product = body as {
+    name: string; description: string; flavour: string; category: string; imageUrl: string;
+    sku?: string; mrpPaise?: number | null; ingredients?: string; allergenInfo?: string;
+    nutritionInfo?: string; storageInstructions?: string; shelfLife?: string;
+    manufacturerName?: string; manufacturerAddress?: string; fssaiLicenseNumber?: string;
+    countryOfOrigin?: string; pricePaise: number; netWeightGrams: number; stockQuantity: number;
+    isActive: boolean; visibility: "draft" | "published"; sortOrder?: number
+  };
   const { productId } = await context.params;
   const ref = adminDb().collection("products").doc(productId);
   const existing = await ref.get();
@@ -22,7 +29,19 @@ export async function PATCH(request: Request, context: Context) {
   await ref.update({
     name: product.name.trim(), slug: toSlug(product.name),
     description: product.description, flavour: product.flavour.trim(),
-    category: product.category, imageUrl: product.imageUrl.trim(),
+    category: product.category,
+    imageUrl: product.imageUrl.trim(),
+    sku: (product.sku ?? "").trim().toUpperCase(),
+    mrpPaise: Number.isInteger(product.mrpPaise) && Number(product.mrpPaise) > 0 ? product.mrpPaise : null,
+    ingredients: (product.ingredients ?? "").trim(),
+    allergenInfo: (product.allergenInfo ?? "").trim(),
+    nutritionInfo: (product.nutritionInfo ?? "").trim(),
+    storageInstructions: (product.storageInstructions ?? "").trim(),
+    shelfLife: (product.shelfLife ?? "").trim(),
+    manufacturerName: (product.manufacturerName ?? "").trim(),
+    manufacturerAddress: (product.manufacturerAddress ?? "").trim(),
+    fssaiLicenseNumber: (product.fssaiLicenseNumber ?? "").trim(),
+    countryOfOrigin: (product.countryOfOrigin ?? "India").trim(),
     pricePaise: product.pricePaise, netWeightGrams: product.netWeightGrams,
     stockQuantity: product.stockQuantity, isActive: product.isActive,
     visibility: product.visibility, sortOrder: Number.isInteger(product.sortOrder) ? product.sortOrder : 0,

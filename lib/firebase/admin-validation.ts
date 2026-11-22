@@ -16,6 +16,25 @@ export function validateProduct(value: unknown): string | null {
   if (typeof value.imageUrl !== "string" || (value.imageUrl && !/^https:\/\//i.test(value.imageUrl))) return "Use an HTTPS image URL or leave it blank.";
   if (typeof value.isActive !== "boolean" || !["draft", "published"].includes(String(value.visibility))) return "Choose an active state and publication status.";
   if (typeof value.description !== "string" || value.description.length > 2000) return "Description must be under 2,000 characters.";
+  const optionalTextLimits: Record<string, number> = { sku: 40, ingredients: 3000, allergenInfo: 1200, nutritionInfo: 2000, storageInstructions: 500, shelfLife: 120, manufacturerName: 180, manufacturerAddress: 500, fssaiLicenseNumber: 30, countryOfOrigin: 80 };
+  for (const [field, limit] of Object.entries(optionalTextLimits)) {
+    if (value[field] !== undefined && typeof value[field] !== "string") return `${field} must be text.`;
+    if (typeof value[field] === "string" && (value[field] as string).length > limit) return `${field} must be ${limit} characters or fewer.`;
+  }
+  if (typeof value.sku === "string" && value.sku && !/^[A-Z0-9_-]{1,40}$/.test(value.sku)) return "Use letters, numbers, dashes or underscores for the SKU.";
+  if (value.mrpPaise !== undefined && value.mrpPaise !== null && (typeof value.mrpPaise !== "number" || !Number.isInteger(value.mrpPaise) || value.mrpPaise < value.pricePaise)) return "MRP must be a whole number of paise and cannot be lower than the selling price.";
+  if (value.isActive === true && value.visibility === "published") {
+    const requiredForPublication: Array<[string, string]> = [
+      ["imageUrl", "Add the final product pack photo before publishing."],
+      ["ingredients", "Add the approved ingredient statement before publishing."],
+      ["allergenInfo", "Add the verified allergen declaration before publishing."],
+      ["nutritionInfo", "Add verified nutrition information before publishing."],
+      ["manufacturerName", "Add the manufacturer or packer name before publishing."],
+      ["manufacturerAddress", "Add the manufacturer or packer address before publishing."],
+      ["fssaiLicenseNumber", "Add the FSSAI licence number before publishing."],
+    ];
+    for (const [field, message] of requiredForPublication) if (typeof value[field] !== "string" || !(value[field] as string).trim()) return message;
+  }
   return null;
 }
 

@@ -8,7 +8,11 @@ import { productCategories } from "@/lib/firebase/admin-validation";
 
 type AdminProduct = {
   id: string; name: string; flavour: string; category: string; description?: string;
-  imageUrl?: string; pricePaise: number; netWeightGrams: number; stockQuantity: number;
+  imageUrl?: string; sku?: string; mrpPaise?: number | null;
+  ingredients?: string; allergenInfo?: string; nutritionInfo?: string;
+  storageInstructions?: string; shelfLife?: string; manufacturerName?: string;
+  manufacturerAddress?: string; fssaiLicenseNumber?: string; countryOfOrigin?: string;
+  pricePaise: number; netWeightGrams: number; stockQuantity: number;
   isActive: boolean; visibility: "draft" | "published"; sortOrder?: number;
 };
 type AdminOrder = {
@@ -17,7 +21,13 @@ type AdminOrder = {
 };
 type Coupon = { id: string; code: string; discountType: "percent" | "fixed"; discountValue: number; isActive: boolean };
 type ProductForm = Omit<AdminProduct, "id">;
-const blankProduct: ProductForm = { name: "", flavour: "", category: "Classic", description: "", imageUrl: "", pricePaise: 0, netWeightGrams: 83, stockQuantity: 0, isActive: true, visibility: "draft", sortOrder: 0 };
+const blankProduct: ProductForm = {
+  name: "", flavour: "", category: "Classic", description: "", imageUrl: "", sku: "",
+  mrpPaise: null, ingredients: "", allergenInfo: "", nutritionInfo: "",
+  storageInstructions: "", shelfLife: "", manufacturerName: "", manufacturerAddress: "",
+  fssaiLicenseNumber: "", countryOfOrigin: "India",
+  pricePaise: 0, netWeightGrams: 83, stockQuantity: 0, isActive: true, visibility: "draft", sortOrder: 0
+};
 
 function money(paise: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format((paise || 0) / 100);
@@ -27,6 +37,22 @@ function dateLabel(value: unknown) {
   if (typeof value === "string") date = new Date(value);
   else if (value && typeof value === "object" && "_seconds" in value) date = new Date(Number((value as { _seconds: number })._seconds) * 1000);
   return date && Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(date) : "—";
+}
+
+const publishRequirements: Array<[keyof ProductForm, string]> = [
+  ["imageUrl", "Pack photo URL"],
+  ["ingredients", "Approved ingredient list"],
+  ["allergenInfo", "Allergen declaration"],
+  ["nutritionInfo", "Verified nutrition information"],
+  ["manufacturerName", "Manufacturer / packer name"],
+  ["manufacturerAddress", "Manufacturer / packer address"],
+  ["fssaiLicenseNumber", "FSSAI licence number"],
+];
+
+function missingPublishDetails(product: ProductForm | AdminProduct) {
+  return publishRequirements
+    .filter(([key]) => typeof product[key] !== "string" || !(product[key] as string).trim())
+    .map(([, label]) => label);
 }
 
 export default function AdminPage() {
@@ -77,6 +103,7 @@ export default function AdminPage() {
   const revenue = paidOrders.reduce((sum, order) => sum + (Number(order.totalPaise) || 0), 0);
   const paidCount = paidOrders.length;
   const activeProducts = products.filter((product) => product.isActive && product.visibility === "published").length;
+  const publishGaps = missingPublishDetails(productForm);
 
   async function saveProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(null); setNotice(null);
@@ -155,18 +182,41 @@ export default function AdminPage() {
         {tab === "products" && <div className="admin-products-layout">
           <section className="admin-panel admin-form-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">CATALOGUE</p><h2>{editing ? "Edit product" : "Add product"}</h2></div>{editing && <button className="admin-link-button" onClick={() => { setEditing(null); setProductForm(blankProduct); }}>Cancel</button>}</div>
             <form className="admin-form" onSubmit={saveProduct}>
-              <label>Product name<input required maxLength={120} value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} /></label>
-              <label>Flavour<input required maxLength={120} value={productForm.flavour} onChange={(e) => setProductForm({ ...productForm, flavour: e.target.value })} /></label>
+              <div className="admin-form-section-title">Basic product details</div>
+              <label>Product name<input required maxLength={120} value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} placeholder="Name printed on the pack" /></label>
+              <div className="admin-form-row">
+                <label>Flavour<input required maxLength={120} value={productForm.flavour} onChange={(e) => setProductForm({ ...productForm, flavour: e.target.value })} placeholder="Approved flavour name" /></label>
+                <label>SKU / product code<input maxLength={40} value={productForm.sku ?? ""} onChange={(e) => setProductForm({ ...productForm, sku: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "") })} placeholder="e.g. PKH-83-001" /></label>
+              </div>
               <label>Category<select value={productForm.category} onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}>{productCategories.map((category) => <option key={category}>{category}</option>)}</select></label>
-              <label>Price (₹)<input required type="number" min="0.01" step="0.01" value={productForm.pricePaise ? productForm.pricePaise / 100 : ""} onChange={(e) => setProductForm({ ...productForm, pricePaise: Math.round(Number(e.target.value) * 100) })} /></label>
-              <div className="admin-form-row"><label>Weight (g)<input required type="number" min="1" step="1" value={productForm.netWeightGrams} onChange={(e) => setProductForm({ ...productForm, netWeightGrams: Number(e.target.value) })} /></label><label>Stock units<input required type="number" min="0" step="1" value={productForm.stockQuantity} onChange={(e) => setProductForm({ ...productForm, stockQuantity: Number(e.target.value) })} /></label></div>
-              <label>Image URL<input type="url" placeholder="https://…" value={productForm.imageUrl ?? ""} onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })} /><small>One HTTPS image URL, matching the current catalogue schema.</small></label>
-              <label>Description<textarea rows={3} maxLength={2000} value={productForm.description ?? ""} onChange={(e) => setProductForm({ ...productForm, description: e.target.value })} /></label>
+              <div className="admin-form-row">
+                <label>Selling price (₹)<input required type="number" min="0.01" step="0.01" value={productForm.pricePaise ? productForm.pricePaise / 100 : ""} onChange={(e) => setProductForm({ ...productForm, pricePaise: Math.round(Number(e.target.value) * 100) })} /></label>
+                <label>MRP (₹)<input type="number" min="0" step="0.01" value={productForm.mrpPaise ? productForm.mrpPaise / 100 : ""} onChange={(e) => setProductForm({ ...productForm, mrpPaise: e.target.value ? Math.round(Number(e.target.value) * 100) : null })} /><small>Optional. Cannot be below selling price.</small></label>
+              </div>
+              <div className="admin-form-row"><label>Net weight (g)<input required type="number" min="1" step="1" value={productForm.netWeightGrams} onChange={(e) => setProductForm({ ...productForm, netWeightGrams: Number(e.target.value) })} /></label><label>Stock units<input required type="number" min="0" step="1" value={productForm.stockQuantity} onChange={(e) => setProductForm({ ...productForm, stockQuantity: Number(e.target.value) })} /></label></div>
+              <div className="admin-form-section-title">Product photography</div>
+              <label>Pack image URL<input type="url" placeholder="https://…" value={productForm.imageUrl ?? ""} onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })} /><small>Paste an HTTPS ImageKit or other image URL. Use the real approved pack photo.</small></label>
+              {productForm.imageUrl && <div className="admin-image-preview"><span>IMAGE URL ADDED</span><a href={productForm.imageUrl} target="_blank" rel="noreferrer">Open image ↗</a></div>}
+              <div className="admin-form-section-title">Ingredients and food-label information</div>
+              <label>Ingredients<textarea required={productForm.visibility === "published" && productForm.isActive} rows={3} maxLength={3000} value={productForm.ingredients ?? ""} onChange={(e) => setProductForm({ ...productForm, ingredients: e.target.value })} placeholder="Enter the approved ingredient statement from the finished pack." /></label>
+              <label>Allergen declaration<textarea required={productForm.visibility === "published" && productForm.isActive} rows={2} maxLength={1200} value={productForm.allergenInfo ?? ""} onChange={(e) => setProductForm({ ...productForm, allergenInfo: e.target.value })} placeholder="Enter the verified allergen statement. Do not guess." /></label>
+              <label>Nutrition information<textarea required={productForm.visibility === "published" && productForm.isActive} rows={3} maxLength={2000} value={productForm.nutritionInfo ?? ""} onChange={(e) => setProductForm({ ...productForm, nutritionInfo: e.target.value })} placeholder="Enter verified nutrition values and serving basis from the approved label." /></label>
+              <label>Storage instructions<input maxLength={500} value={productForm.storageInstructions ?? ""} onChange={(e) => setProductForm({ ...productForm, storageInstructions: e.target.value })} placeholder="Approved storage directions" /></label>
+              <label>Shelf life<input maxLength={120} value={productForm.shelfLife ?? ""} onChange={(e) => setProductForm({ ...productForm, shelfLife: e.target.value })} placeholder="As validated for the finished product" /></label>
+              <div className="admin-form-section-title">Manufacturer / packer details</div>
+              <label>Manufacturer / packer name<input required={productForm.visibility === "published" && productForm.isActive} maxLength={180} value={productForm.manufacturerName ?? ""} onChange={(e) => setProductForm({ ...productForm, manufacturerName: e.target.value })} /></label>
+              <label>Manufacturer / packer full address<textarea required={productForm.visibility === "published" && productForm.isActive} rows={2} maxLength={500} value={productForm.manufacturerAddress ?? ""} onChange={(e) => setProductForm({ ...productForm, manufacturerAddress: e.target.value })} /></label>
+              <div className="admin-form-row">
+                <label>FSSAI licence number<input required={productForm.visibility === "published" && productForm.isActive} maxLength={30} value={productForm.fssaiLicenseNumber ?? ""} onChange={(e) => setProductForm({ ...productForm, fssaiLicenseNumber: e.target.value })} /></label>
+                <label>Country of origin<input maxLength={80} value={productForm.countryOfOrigin ?? "India"} onChange={(e) => setProductForm({ ...productForm, countryOfOrigin: e.target.value })} /></label>
+              </div>
+              <label>Short product description<textarea rows={3} maxLength={2000} value={productForm.description ?? ""} onChange={(e) => setProductForm({ ...productForm, description: e.target.value })} placeholder="A short, factual product description." /></label>
+              {productForm.visibility === "published" && productForm.isActive && publishGaps.length > 0 && <div className="admin-alert warning"><strong>Not ready to publish.</strong> Complete: {publishGaps.join(", ")}. Use approved product and pack information only.</div>}
               <div className="admin-form-row"><label className="admin-check"><input type="checkbox" checked={productForm.isActive} onChange={(e) => setProductForm({ ...productForm, isActive: e.target.checked })} /> Active</label><label>Visibility<select value={productForm.visibility} onChange={(e) => setProductForm({ ...productForm, visibility: e.target.value as ProductForm["visibility"] })}><option value="draft">Draft</option><option value="published">Published</option></select></label></div>
               <button className="admin-primary" disabled={busy}>{busy ? "Saving…" : editing ? "Save changes" : "Create product"}</button>
             </form>
           </section>
-          <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">{products.length} TOTAL</p><h2>Products</h2></div></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th /></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><strong>{product.name}</strong><small>{product.flavour} · {product.category} · {product.netWeightGrams} g</small></td><td>{money(product.pricePaise)}</td><td>{product.stockQuantity}</td><td><span className={`admin-pill ${product.visibility === "published" && product.isActive ? "green" : "muted"}`}>{product.isActive ? product.visibility : "inactive"}</span></td><td className="admin-row-actions"><button onClick={() => editProduct(product)}>Edit</button><button onClick={() => void archiveProduct(product)}>{product.isActive ? "Hide" : "Hidden"}</button></td></tr>)}</tbody></table>{products.length === 0 && <EmptyState>No product documents were found.</EmptyState>}</div></section>
+          <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">{products.length} TOTAL</p><h2>Products</h2></div></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th /></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><strong>{product.name}</strong><small>{product.sku ? product.sku + " · " : ""}{product.flavour} · {product.category} · {product.netWeightGrams} g</small></td><td><strong>{money(product.pricePaise)}</strong>{product.mrpPaise && product.mrpPaise > product.pricePaise ? <small>MRP {money(product.mrpPaise)}</small> : null}</td><td>{product.stockQuantity}</td><td><span className={`admin-pill ${product.visibility === "published" && product.isActive ? "green" : "muted"}`}>{product.isActive ? product.visibility : "inactive"}</span>{missingPublishDetails(product).length > 0 && <small>{missingPublishDetails(product).length} publish details missing</small>}</td><td className="admin-row-actions"><button onClick={() => editProduct(product)}>Edit</button><button onClick={() => void archiveProduct(product)}>{product.isActive ? "Hide" : "Hidden"}</button></td></tr>)}</tbody></table>{products.length === 0 && <EmptyState>No product documents were found.</EmptyState>}</div></section>
         </div>}
         {tab === "inventory" && <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">STOCK CONTROL</p><h2>Inventory</h2></div><span className="admin-pill amber">Alert at 5 units</span></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Product</th><th>On hand</th><th>Storefront</th><th>Action</th></tr></thead><tbody>{products.slice().sort((a, b) => a.stockQuantity - b.stockQuantity).map((product) => <tr key={product.id}><td><strong>{product.name}</strong><small>{product.category} · {product.netWeightGrams} g</small></td><td><strong className={product.stockQuantity <= 5 ? "stock-low" : ""}>{product.stockQuantity}</strong></td><td>{product.isActive && product.visibility === "published" ? "Published" : "Hidden"}</td><td><button className="admin-row-button" onClick={() => editProduct(product)}>Adjust stock</button></td></tr>)}</tbody></table></div></section>}
         {tab === "orders" && <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">CUSTOMER ORDERS</p><h2>Orders</h2></div><span className="admin-pill muted">Latest 200</span></div><OrderTable orders={orders} busy={busy} updateOrder={updateOrder} /></section>}
