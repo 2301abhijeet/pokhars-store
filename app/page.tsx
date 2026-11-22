@@ -15,6 +15,8 @@ import {
   type CartQuantities,
 } from "@/lib/firebase/cart";
 
+const isDemoCatalogueMode = process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "true";
+
 type Filter = "All" | "Classic" | "Masala" | "Fresh" | "Cheesy" | "Premium";
 type Cart = CartQuantities;
 type CheckoutConfig = { enabled: boolean; mode: "test" | null; keyId: string; shippingPaise: number; livePaymentsEnabled: false };
