@@ -1,5 +1,6 @@
 export type Product = {
   id: string;
+  isDemo?: boolean;
   name: string;
   flavour: string;
   category: "Classic" | "Masala" | "Fresh" | "Cheesy" | "Premium";

@@ -15,7 +15,8 @@ export function checkoutConfig() {
   const keyId = process.env.RAZORPAY_KEY_ID ?? "";
   const keySecret = process.env.RAZORPAY_KEY_SECRET ?? "";
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET ?? "";
-  const enabled = process.env.VERCEL_ENV !== "production" &&
+  const enabled = process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE !== "true" &&
+    process.env.VERCEL_ENV !== "production" &&
     process.env.RAZORPAY_MODE === "test" &&
     keyId.startsWith("rzp_test_") &&
     Boolean(keySecret);

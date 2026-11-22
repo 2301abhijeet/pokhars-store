@@ -11,6 +11,8 @@ import { isPlaceholderProductValue, isValidFssaiNumber } from "@/lib/firebase/ad
 
 type ProductCategory = Product["category"];
 
+const isDemoCatalogueMode = process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "true";
+
 const categoryDefaults: Record<ProductCategory, { accent: string; ink: string; symbol: string; mood: string }> = {
   Classic: { accent: "#0b694f", ink: "#07543f", symbol: "✳", mood: "CLASSIC" },
   Masala: { accent: "#a92725", ink: "#85201f", symbol: "✺", mood: "MASALA" },
@@ -35,9 +37,11 @@ function mapProduct(id: string, data: Record<string, unknown>): Product | null {
   const pricePaise = Number(data.pricePaise);
   const grams = Number(data.netWeightGrams);
   const publishTextFields = ["imageUrl", "ingredients", "allergenInfo", "nutritionInfo", "manufacturerName", "manufacturerAddress"];
-  const hasVerifiedPublishDetails = publishTextFields.every((field) => !isPlaceholderProductValue(data[field]))
-    && data.packImageVerified === true
-    && isValidFssaiNumber(data.fssaiLicenseNumber);
+  const hasVerifiedPublishDetails = isDemoCatalogueMode || (
+    publishTextFields.every((field) => !isPlaceholderProductValue(data[field]))
+      && data.packImageVerified === true
+      && isValidFssaiNumber(data.fssaiLicenseNumber)
+  );
 
   // Ignore malformed or incomplete product documents rather than showing
   // an empty title, NaN price, or invalid pack size to shoppers.
@@ -54,6 +58,7 @@ function mapProduct(id: string, data: Record<string, unknown>): Product | null {
 
   return {
     id,
+    isDemo: isDemoCatalogueMode,
     name,
     flavour,
     category,

@@ -12,14 +12,14 @@ const placeholderValues = new Set([
 
 export function isPlaceholderProductValue(value: unknown): boolean {
   if (typeof value !== "string") return true;
-  const normalized = value.trim().toLowerCase().replace(/[.,:;!?]+/g, "").replace(/\\s+/g, " ");
+  const normalized = value.trim().toLowerCase().replace(/[.,:;!?]+/g, "").replace(/\s+/g, " ");
   return !normalized || placeholderValues.has(normalized)
-    || /^(enter|add|insert|replace with|to be confirmed|tbd|todo)\\b/i.test(normalized);
+    || /^(enter|add|insert|replace with|to be confirmed|tbd|todo)\b/i.test(normalized);
 }
 
 export function isValidFssaiNumber(value: unknown): value is string {
   // FSSAI uses a 14-digit licence/registration number: 1 = licence, 2 = registration.
-  return typeof value === "string" && /^[12]\\d{13}$/.test(value.trim());
+  return typeof value === "string" && /^[12]\d{13}$/.test(value.trim());
 }
 
 export function validateProduct(value: unknown): string | null {
@@ -41,7 +41,7 @@ export function validateProduct(value: unknown): string | null {
   }
   if (typeof value.sku === "string" && value.sku && !/^[A-Z0-9_-]{1,40}$/.test(value.sku)) return "Use letters, numbers, dashes or underscores for the SKU.";
   if (value.mrpPaise !== undefined && value.mrpPaise !== null && (typeof value.mrpPaise !== "number" || !Number.isInteger(value.mrpPaise) || value.mrpPaise < value.pricePaise)) return "MRP must be a whole number of paise and cannot be lower than the selling price.";
-  if (value.isActive === true && value.visibility === "published") {
+  if (value.isActive === true && value.visibility === "published" && process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE !== "true") {
     const requiredForPublication: Array<[string, string]> = [
       ["imageUrl", "Add the final product pack photo before publishing."],
       ["ingredients", "Add the approved ingredient statement before publishing."],
