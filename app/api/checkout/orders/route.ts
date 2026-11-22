@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb, jsonError, verifySignedInUser } from "@/lib/firebase/admin";
 import { checkoutConfig, razorpayRequest, releaseExpiredReservations, releaseReservation } from "@/lib/firebase/razorpay";
+import { isPlaceholderProductValue, isValidFssaiNumber } from "@/lib/firebase/admin-validation";
 
 export const runtime = "nodejs";
 
@@ -99,10 +100,10 @@ export async function POST(request: Request) {
         const data = snapshot.data()!;
         const price = Number(data.pricePaise);
         const stock = Number(data.stockQuantity);
-        const publishFields = ["imageUrl", "ingredients", "allergenInfo", "nutritionInfo", "manufacturerName", "manufacturerAddress", "fssaiLicenseNumber"];
-        const hasVerifiedPublishDetails = publishFields.every((field) =>
-          typeof data[field] === "string" && (data[field] as string).trim().length > 0
-        );
+        const publishFields = ["imageUrl", "ingredients", "allergenInfo", "nutritionInfo", "manufacturerName", "manufacturerAddress"];
+        const hasVerifiedPublishDetails = publishFields.every((field) => !isPlaceholderProductValue(data[field]))
+          && data.packImageVerified === true
+          && isValidFssaiNumber(data.fssaiLicenseNumber);
         if (data.isActive !== true || data.visibility !== "published" || !hasVerifiedPublishDetails) throw new Error("PRODUCT_UNAVAILABLE");
         if (!Number.isSafeInteger(price) || price < 1 || !Number.isSafeInteger(stock) || stock < item.quantity) throw new Error("INSUFFICIENT_STOCK");
         const lineTotal = price * item.quantity;

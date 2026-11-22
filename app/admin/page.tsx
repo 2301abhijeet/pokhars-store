@@ -11,7 +11,7 @@ type AdminProduct = {
   imageUrl?: string; sku?: string; mrpPaise?: number | null;
   ingredients?: string; allergenInfo?: string; nutritionInfo?: string;
   storageInstructions?: string; shelfLife?: string; manufacturerName?: string;
-  manufacturerAddress?: string; fssaiLicenseNumber?: string; countryOfOrigin?: string;
+  manufacturerAddress?: string; fssaiLicenseNumber?: string; countryOfOrigin?: string; packImageVerified?: boolean;
   pricePaise: number; netWeightGrams: number; stockQuantity: number;
   isActive: boolean; visibility: "draft" | "published"; sortOrder?: number;
 };
@@ -25,7 +25,7 @@ const blankProduct: ProductForm = {
   name: "", flavour: "", category: "Classic", description: "", imageUrl: "", sku: "",
   mrpPaise: null, ingredients: "", allergenInfo: "", nutritionInfo: "",
   storageInstructions: "", shelfLife: "", manufacturerName: "", manufacturerAddress: "",
-  fssaiLicenseNumber: "", countryOfOrigin: "India",
+  fssaiLicenseNumber: "", countryOfOrigin: "India", packImageVerified: false,
   pricePaise: 0, netWeightGrams: 83, stockQuantity: 0, isActive: true, visibility: "draft", sortOrder: 0
 };
 
@@ -41,6 +41,7 @@ function dateLabel(value: unknown) {
 
 const publishRequirements: Array<[keyof ProductForm, string]> = [
   ["imageUrl", "Pack photo URL"],
+  ["packImageVerified", "Confirm exact POKHAR'S pack photo and flavour"],
   ["ingredients", "Approved ingredient list"],
   ["allergenInfo", "Allergen declaration"],
   ["nutritionInfo", "Verified nutrition information"],
@@ -51,7 +52,15 @@ const publishRequirements: Array<[keyof ProductForm, string]> = [
 
 function missingPublishDetails(product: ProductForm | AdminProduct) {
   return publishRequirements
-    .filter(([key]) => typeof product[key] !== "string" || !(product[key] as string).trim())
+    .filter(([key]) => {
+      if (key === "packImageVerified") return product.packImageVerified !== true;
+      if (key === "fssaiLicenseNumber") return !/^[12]\\d{13}$/.test(String(product.fssaiLicenseNumber ?? "").trim());
+      const value = product[key];
+      if (typeof value !== "string" || !value.trim()) return true;
+      const normalized = value.trim().toLowerCase().replace(/[.,:;!?]+/g, "").replace(/\\s+/g, " ");
+      return ["exact ingredient list", "verified allergen declaration", "verified nutrition information", "legal business name and address", "actual licence number", "actual license number"].includes(normalized)
+        || /^(enter|add|insert|replace with|to be confirmed|tbd|todo)\\b/i.test(normalized);
+    })
     .map(([, label]) => label);
 }
 
@@ -179,7 +188,7 @@ export default function AdminPage() {
         xhr.send(form);
       });
 
-      setProductForm((current) => ({ ...current, imageUrl: uploaded.url }));
+      setProductForm((current) => ({ ...current, imageUrl: uploaded.url, packImageVerified: false }));
       setNotice("Product photo uploaded. Save the product to attach this image to its catalogue record.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Product photo could not be uploaded.");
@@ -306,9 +315,14 @@ export default function AdminPage() {
                 </div>
               )}
               <label>Or paste an existing HTTPS image URL
-                <input type="url" placeholder="https://…" value={productForm.imageUrl ?? ""} onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })} />
+                <input type="url" placeholder="https://…" value={productForm.imageUrl ?? ""} onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value, packImageVerified: false })} />
                 <small>The URL is saved with the product when you press Save product.</small>
               </label>
+              <label className="admin-check admin-image-confirm">
+                <input type="checkbox" checked={productForm.packImageVerified === true} onChange={(e) => setProductForm({ ...productForm, packImageVerified: e.target.checked })} />
+                I confirm this photo shows the exact POKHAR’S pack and selected flavour — not a reference or competitor image.
+              </label>
+              <small className="admin-image-confirm-note">Changing the image resets this confirmation. Review the preview carefully before checking.</small>
               <div className="admin-form-section-title">Ingredients and food-label information</div>
               <label>Ingredients<textarea required={productForm.visibility === "published" && productForm.isActive} rows={3} maxLength={3000} value={productForm.ingredients ?? ""} onChange={(e) => setProductForm({ ...productForm, ingredients: e.target.value })} placeholder="Enter the approved ingredient statement from the finished pack." /></label>
               <label>Allergen declaration<textarea required={productForm.visibility === "published" && productForm.isActive} rows={2} maxLength={1200} value={productForm.allergenInfo ?? ""} onChange={(e) => setProductForm({ ...productForm, allergenInfo: e.target.value })} placeholder="Enter the verified allergen statement. Do not guess." /></label>

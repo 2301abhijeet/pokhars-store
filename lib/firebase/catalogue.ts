@@ -7,6 +7,7 @@ import {
 } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/client";
 import type { Product } from "@/lib/products";
+import { isPlaceholderProductValue, isValidFssaiNumber } from "@/lib/firebase/admin-validation";
 
 type ProductCategory = Product["category"];
 
@@ -33,10 +34,10 @@ function mapProduct(id: string, data: Record<string, unknown>): Product | null {
   const name = typeof data.name === "string" ? data.name.trim() : "";
   const pricePaise = Number(data.pricePaise);
   const grams = Number(data.netWeightGrams);
-  const publishFields = ["imageUrl", "ingredients", "allergenInfo", "nutritionInfo", "manufacturerName", "manufacturerAddress", "fssaiLicenseNumber"];
-  const hasVerifiedPublishDetails = publishFields.every((field) =>
-    typeof data[field] === "string" && (data[field] as string).trim().length > 0
-  );
+  const publishTextFields = ["imageUrl", "ingredients", "allergenInfo", "nutritionInfo", "manufacturerName", "manufacturerAddress"];
+  const hasVerifiedPublishDetails = publishTextFields.every((field) => !isPlaceholderProductValue(data[field]))
+    && data.packImageVerified === true
+    && isValidFssaiNumber(data.fssaiLicenseNumber);
 
   // Ignore malformed or incomplete product documents rather than showing
   // an empty title, NaN price, or invalid pack size to shoppers.

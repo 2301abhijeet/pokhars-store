@@ -5,6 +5,23 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
+const placeholderValues = new Set([
+  "exact ingredient list", "verified allergen declaration", "verified nutrition information",
+  "legal business name and address", "actual licence number", "actual license number",
+]);
+
+export function isPlaceholderProductValue(value: unknown): boolean {
+  if (typeof value !== "string") return true;
+  const normalized = value.trim().toLowerCase().replace(/[.,:;!?]+/g, "").replace(/\\s+/g, " ");
+  return !normalized || placeholderValues.has(normalized)
+    || /^(enter|add|insert|replace with|to be confirmed|tbd|todo)\\b/i.test(normalized);
+}
+
+export function isValidFssaiNumber(value: unknown): value is string {
+  // FSSAI uses a 14-digit licence/registration number: 1 = licence, 2 = registration.
+  return typeof value === "string" && /^[12]\\d{13}$/.test(value.trim());
+}
+
 export function validateProduct(value: unknown): string | null {
   if (!isRecord(value)) return "Product details are required.";
   if (typeof value.name !== "string" || !value.name.trim() || value.name.length > 120) return "Enter a product name up to 120 characters.";
@@ -15,6 +32,7 @@ export function validateProduct(value: unknown): string | null {
   if (typeof value.stockQuantity !== "number" || !Number.isInteger(value.stockQuantity) || value.stockQuantity < 0) return "Stock must be zero or more.";
   if (typeof value.imageUrl !== "string" || (value.imageUrl && !/^https:\/\//i.test(value.imageUrl))) return "Use an HTTPS image URL or leave it blank.";
   if (typeof value.isActive !== "boolean" || !["draft", "published"].includes(String(value.visibility))) return "Choose an active state and publication status.";
+  if (value.packImageVerified !== undefined && typeof value.packImageVerified !== "boolean") return "Confirm whether this is the correct POKHAR'S pack photo.";
   if (typeof value.description !== "string" || value.description.length > 2000) return "Description must be under 2,000 characters.";
   const optionalTextLimits: Record<string, number> = { sku: 40, ingredients: 3000, allergenInfo: 1200, nutritionInfo: 2000, storageInstructions: 500, shelfLife: 120, manufacturerName: 180, manufacturerAddress: 500, fssaiLicenseNumber: 30, countryOfOrigin: 80 };
   for (const [field, limit] of Object.entries(optionalTextLimits)) {
@@ -31,9 +49,12 @@ export function validateProduct(value: unknown): string | null {
       ["nutritionInfo", "Add verified nutrition information before publishing."],
       ["manufacturerName", "Add the manufacturer or packer name before publishing."],
       ["manufacturerAddress", "Add the manufacturer or packer address before publishing."],
-      ["fssaiLicenseNumber", "Add the FSSAI licence number before publishing."],
     ];
-    for (const [field, message] of requiredForPublication) if (typeof value[field] !== "string" || !(value[field] as string).trim()) return message;
+    for (const [field, message] of requiredForPublication) {
+      if (typeof value[field] !== "string" || isPlaceholderProductValue(value[field])) return message;
+    }
+    if (value.packImageVerified !== true) return "Confirm the image is the exact POKHAR'S pack and selected flavour.";
+    if (!isValidFssaiNumber(value.fssaiLicenseNumber)) return "Enter the actual 14-digit FSSAI licence or registration number, starting with 1 or 2.";
   }
   return null;
 }

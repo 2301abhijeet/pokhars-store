@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     sku?: string; mrpPaise?: number | null; ingredients?: string; allergenInfo?: string;
     nutritionInfo?: string; storageInstructions?: string; shelfLife?: string;
     manufacturerName?: string; manufacturerAddress?: string; fssaiLicenseNumber?: string;
-    countryOfOrigin?: string; pricePaise: number; netWeightGrams: number; stockQuantity: number;
+    countryOfOrigin?: string; packImageVerified?: boolean; pricePaise: number; netWeightGrams: number; stockQuantity: number;
     isActive: boolean; visibility: "draft" | "published"; sortOrder?: number
   };
 
@@ -47,6 +47,7 @@ export async function POST(request: Request) {
     manufacturerAddress: (product.manufacturerAddress ?? "").trim(),
     fssaiLicenseNumber: (product.fssaiLicenseNumber ?? "").trim(),
     countryOfOrigin: (product.countryOfOrigin ?? "India").trim(),
+    packImageVerified: product.packImageVerified === true,
     pricePaise: product.pricePaise,
     netWeightGrams: product.netWeightGrams,
     stockQuantity: product.stockQuantity,
