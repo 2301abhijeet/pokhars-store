@@ -29,7 +29,7 @@ type RazorpayOptions = {
   theme: { color: string };
   config?: {
     display: {
-      blocks: Record<string, { name: string; instruments: Array<{ method: string }> }>;
+      blocks: Record<string, { name: string; instruments: Array<{ method: string; flows?: string[]; apps?: string[] }> }>;
       sequence: string[];
       preferences: { show_default_blocks: boolean };
     };
