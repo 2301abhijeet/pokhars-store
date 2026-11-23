@@ -22,11 +22,11 @@ export default async function ShippingPolicyPage() {
         <p className="shipping-policy-intro">Check whether delivery is configured for your area and see the current shipping estimate before you plan your order.</p>
 
         <ShippingChecker />
-        {settings?.enabled && (
+        {settings && (settings.enabled || settings.policyNote) && (
           <div className="shipping-policy-live-note">
             <strong>CURRENT STORE SHIPPING NOTE</strong>
             {settings.policyNote && <p>{settings.policyNote}</p>}
-            <p>Handling estimate configured by the store: {settings.handlingMinDays}–{settings.handlingMaxDays} days, in addition to the delivery range shown for your PIN code.</p>
+            {settings.enabled && <p>Handling estimate configured by the store: {settings.handlingMinDays}–{settings.handlingMaxDays} days, in addition to the delivery range shown for your PIN code.</p>}
           </div>
         )}
 

@@ -81,7 +81,7 @@ export function ShippingChecker({ subtotalPaise = 0 }: { subtotalPaise?: number 
           )}
         </div>
       )}
-      <small className="shipping-checker-footnote">Availability and estimates use the store’s configured delivery zones. Courier coverage and delivery times can change.</small>
+      <small className="shipping-checker-footnote">Use the PIN from your delivery address. Availability and estimates use the store’s manually configured delivery zones, not a live courier lookup. Product pages estimate one pack; the bag checker uses the full bag subtotal. {process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "true" ? "Demo mode is active, so any quote is only a configuration preview; orders and payments are disabled." : "The saved-address PIN and final shipping fee are recalculated by the server at checkout."}</small>
     </section>
   );
 }

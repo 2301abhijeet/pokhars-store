@@ -69,6 +69,9 @@ export type OrderDocument = {
   subtotalPaise: number;
   shippingPaise: number;
   discountPaise: number;
+  shippingZoneName?: string;
+  deliveryMinDays?: number;
+  deliveryMaxDays?: number;
   totalPaise: number;
   status: OrderStatus;
   paymentStatus: "created" | "paid" | "failed" | "refunded";

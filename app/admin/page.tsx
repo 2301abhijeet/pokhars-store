@@ -134,8 +134,8 @@ export default function AdminPage() {
         zones: Array.isArray(savedShipping.zones) ? savedShipping.zones.map((zone: {
           id?: string; name?: string; pincodes?: string[]; shippingFeePaise?: number;
           freeShippingAbovePaise?: number | null; deliveryMinDays?: number; deliveryMaxDays?: number;
-        }) => ({
-          id: zone.id ?? `zone-${Math.random().toString(36).slice(2, 9)}`,
+        }, index: number) => ({
+          id: zone.id ?? `zone-${index + 1}`,
           name: zone.name ?? "",
           pincodes: Array.isArray(zone.pincodes) ? zone.pincodes.join(", ") : "",
           shippingFeeRupees: (Number(zone.shippingFeePaise ?? 0) / 100).toFixed(2),

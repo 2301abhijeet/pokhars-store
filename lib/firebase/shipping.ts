@@ -51,14 +51,14 @@ function cleanZone(value: unknown): ShippingZone | null {
   const zone = value as Record<string, unknown>;
   const id = typeof zone.id === "string" ? zone.id.trim() : "";
   const name = typeof zone.name === "string" ? zone.name.trim() : "";
-  const pincodes = Array.isArray(zone.pincodes)
-    ? zone.pincodes.filter((pin): pin is string => isIndianPincode(pin)).map((pin) => pin.trim())
-    : [];
+  const rawPincodes = Array.isArray(zone.pincodes) ? zone.pincodes : [];
+  if (!rawPincodes.length || rawPincodes.length > 2000 || !rawPincodes.every(isIndianPincode)) return null;
+  const pincodes = rawPincodes.map((pin) => pin.trim());
   const fee = Number(zone.shippingFeePaise);
   const freeAbove = zone.freeShippingAbovePaise == null ? null : Number(zone.freeShippingAbovePaise);
   const minDays = Number(zone.deliveryMinDays);
   const maxDays = Number(zone.deliveryMaxDays);
-  if (!id || !name || !pincodes.length ||
+  if (!id || id.length > 80 || !name || name.length > 60 || !pincodes.length ||
       !Number.isSafeInteger(fee) || fee < 0 || fee > 10_000_000 ||
       (freeAbove !== null && (!Number.isSafeInteger(freeAbove) || freeAbove < 0 || freeAbove > 100_000_000)) ||
       !Number.isInteger(minDays) || minDays < 1 || minDays > 60 ||

@@ -23,7 +23,10 @@ The storefront is being built in two stages:
 - Flavour filtering and product cards
 - Cart with quantity controls
 - Customer sign-in, profile and saved addresses
-- Secure checkout, payment and customer order tracking with courier AWB/details
+- PIN-code shipping zones, shipping fees, free-shipping thresholds and delivery estimates
+- Secure checkout with server-side PIN-code and shipping-fee recalculation
+- Customer order tracking with courier AWB/details
+- Shipping & Delivery policy page
 - Admin product, inventory and order management
 
 ## Design direction
@@ -59,6 +62,14 @@ Keep `NEXT_PUBLIC_CATALOGUE_DEMO_MODE=true` while the site uses sample product n
 - No sample product may be used to create a customer order or payment.
 
 Before launch, replace every sample field/image with final approved product information, verify the actual pack photo and FSSAI details, then set `NEXT_PUBLIC_CATALOGUE_DEMO_MODE=false` (or remove it) in Vercel and redeploy. Strict publication checks automatically resume. Never use demo mode to accept customer orders.
+
+## Shipping and delivery configuration
+
+Shipping rules are stored in the server-managed Firestore document `settings/shipping`. The Admin → Shipping section supports manual delivery zones, exact 6-digit PIN-code lists, shipping fees in rupees, optional free-shipping thresholds, handling ranges, delivery estimates and a customer-facing policy note. A PIN code cannot appear in more than one zone. Invalid or unverified PIN codes are not automatically added.
+
+The public `/api/store/shipping` endpoint returns a quote for a submitted PIN code and cart subtotal. It exposes the quote, not the complete list of serviceable PIN codes. This is a manual store configuration, not a live courier API; verify coverage with the selected delivery partner before enabling zones. The product page quote uses one pack's price; the bag checker uses the complete bag subtotal. The checkout endpoint independently reads the selected saved-address PIN code and recalculates the fee inside its Firestore transaction. Orders store the fee, zone name and delivery estimate as order snapshots.
+
+The `/shipping-policy` page explains the checker and current configured handling note. Keep shipping disabled until actual zones, costs and time ranges have been confirmed. Demo mode still blocks all order creation and payments.
 
 ## Security principles
 
