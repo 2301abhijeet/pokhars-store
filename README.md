@@ -161,4 +161,4 @@ The repository's existing rules already restrict product reads to published acti
 
 ## Status
 
-The dashboard and test-only checkout are implemented. Razorpay test credentials and the test webhook still need to be added by the owner before a test purchase can be completed.
+The dashboard and test-only checkout are implemented. Razorpay Test Mode credentials and the webhook are configured in Vercel Production for the explicitly gated demo catalogue test flow. Complete an end-to-end test transaction and verify webhook/order status before using the store for any real customers. Live payments remain disabled; demo orders are not delivered, do not change stock and are excluded from sales.
