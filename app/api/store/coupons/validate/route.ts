@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return jsonError("Invalid coupon request.", 400);
   const payload = body as { code?: unknown; subtotalPaise?: unknown };
   if (typeof payload.code !== "string" || !/^[A-Z0-9_-]{3,32}$/i.test(payload.code.trim())) return jsonError("Enter a valid coupon code.", 400);
-  if (!Number.isSafeInteger(payload.subtotalPaise) || Number(payload.subtotalPaise) < 1 || Number(payload.subtotalPaise) > 100_000_000) {
+  if (typeof payload.subtotalPaise !== "number" || !Number.isSafeInteger(payload.subtotalPaise) || payload.subtotalPaise < 1 || payload.subtotalPaise > 100_000_000) {
     return jsonError("Your bag total is invalid.", 400);
   }
   try {

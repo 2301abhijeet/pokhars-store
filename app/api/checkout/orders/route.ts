@@ -132,8 +132,8 @@ export async function POST(request: Request) {
         const lineTotal = price * item.quantity;
         if (!Number.isSafeInteger(lineTotal)) throw new Error("TOTAL_INVALID");
         subtotal += lineTotal;
-        const netWeightGrams = Number(data.netWeightGrams);
-        if (!Number.isSafeInteger(netWeightGrams) || netWeightGrams < 1 || netWeightGrams > 5000) throw new Error("PRODUCT_WEIGHT_MISSING");
+        const productWeight = Number(data.netWeightGrams);
+        const netWeightGrams = Number.isSafeInteger(productWeight) && productWeight > 0 && productWeight <= 5000 ? productWeight : 0;
         const sku = typeof data.sku === "string" && data.sku.trim() ? data.sku.trim() : item.productId;
         return { productId: item.productId, nameSnapshot: String(data.name), sku, netWeightGrams, unitPricePaise: price, quantity: item.quantity, lineTotalPaise: lineTotal, stock };
       });
@@ -235,7 +235,7 @@ export async function POST(request: Request) {
       PRODUCT_NOT_FOUND: ["A product in your bag is no longer available.", 409],
       PRODUCT_UNAVAILABLE: ["A product in your bag is no longer published for sale.", 409],
       INSUFFICIENT_STOCK: ["There is not enough stock for one or more products in your bag.", 409],
-      PRODUCT_WEIGHT_MISSING: ["A product is missing verified shipping weight. Please contact the store before checkout.", 409],
+
       TOTAL_INVALID: ["The order total is invalid. Please refresh your bag.", 400],
     };
     const [message, status] = messages[code] ?? ["Checkout could not be prepared. Please try again.", 500];
