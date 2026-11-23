@@ -803,3 +803,21 @@ a { color: inherit; text-decoration: none; }
   .shipping-checker-controls { flex-direction: column; }
   .shipping-checker-controls button { min-height: 40px; }
 }
+
+
+/* Shipping checker in the cream cart drawer */
+.cart-drawer .shipping-checker { margin: 13px 0; padding: 13px; border-color: rgba(5,75,54,.15); background: rgba(5,75,54,.045); }
+.cart-drawer .shipping-checker-heading span { color: var(--coral); }
+.cart-drawer .shipping-checker-heading strong { color: var(--green-deep); font-size: 19px; }
+.cart-drawer .shipping-checker-form label { color: #586f62; }
+.cart-drawer .shipping-checker-controls input { border-color: rgba(5,75,54,.22); background: #fffaf0; color: var(--green-deep); }
+.cart-drawer .shipping-checker-controls input::placeholder { color: #8c9a90; }
+.cart-drawer .shipping-checker-result.is-success { color: #145737; background: #e6f5e9; border-color: #b8dfc2; }
+.cart-drawer .shipping-checker-result.is-unavailable { color: #66501b; background: #fff5d7; border-color: #eedb9d; }
+.cart-drawer .shipping-checker-result.is-error { color: #8d3129; background: #fff0ec; border-color: #f0c7ba; }
+.cart-drawer .shipping-checker-result strong, .cart-drawer .shipping-quote-details b { color: var(--green-deep); }
+.cart-drawer .shipping-quote-details span { color: #677c70; }
+.cart-drawer .shipping-checker-footnote { color: #819087; }
+.shipping-policy-live-note { max-width: 700px; margin: 18px 0 28px; padding: 17px 19px; border: 1px solid rgba(255,212,91,.3); border-radius: 14px; background: rgba(255,212,91,.09); }
+.shipping-policy-live-note strong { color: var(--yellow); font: 900 8px var(--font-body); letter-spacing: .13em; }
+.shipping-policy-live-note p { margin: 7px 0 0; color: rgba(255,240,207,.8); font-size: 10px; line-height: 1.7; }

@@ -303,7 +303,7 @@ export default function AdminPage() {
       const zones = shippingForm.zones.map((zone) => ({
         id: zone.id,
         name: zone.name.trim(),
-        pincodes: zone.pincodes.split(/[\\s,;]+/).map((pin) => pin.trim()).filter(Boolean),
+        pincodes: zone.pincodes.split(/[\s,;]+/).map((pin) => pin.trim()).filter(Boolean),
         shippingFeePaise: Math.round(Number(zone.shippingFeeRupees) * 100),
         freeShippingAbovePaise: zone.freeShippingAboveRupees.trim() === ""
           ? null : Math.round(Number(zone.freeShippingAboveRupees) * 100),
@@ -494,7 +494,7 @@ export default function AdminPage() {
                         <input value={zone.name} maxLength={60} placeholder="e.g. Local delivery" onChange={(event) => updateShippingZone(index, { name: event.target.value })} />
                       </label>
                       <label>Serviceable PIN codes
-                        <textarea rows={3} value={zone.pincodes} placeholder="846001, 846004, 846005" onChange={(event) => updateShippingZone(index, { pincodes: event.target.value.replace(/[^0-9,;\\s]/g, "") })} />
+                        <textarea rows={3} value={zone.pincodes} placeholder="846001, 846004, 846005" onChange={(event) => updateShippingZone(index, { pincodes: event.target.value.replace(/[^0-9,;\s]/g, "") })} />
                         <small>Enter only verified 6-digit PIN codes, separated by commas or spaces. Each PIN can belong to one zone only.</small>
                       </label>
                       <div className="admin-shipping-grid">

@@ -16,6 +16,9 @@ type AccountOrder = {
   paymentMode: "test" | "live";
   subtotalPaise: number;
   shippingPaise: number;
+  shippingZoneName: string | null;
+  deliveryMinDays: number | null;
+  deliveryMaxDays: number | null;
   totalPaise: number;
   createdAt: string | null;
   carrier: string | null;
@@ -177,6 +180,13 @@ export default function AccountPage() {
                             return <li className={done ? "is-complete" : ""} key={step}><span className="customer-tracking-step-dot">{done ? "✓" : index + 1}</span><span>{statusLabel(step)}</span></li>;
                           })}
                         </ol>
+                      )}
+                      {(order.shippingZoneName || order.deliveryMinDays !== null || order.shippingPaise > 0) && (
+                        <div className="customer-tracking-carrier">
+                          {order.shippingZoneName && <div><span>DELIVERY ZONE</span><strong>{order.shippingZoneName}</strong></div>}
+                          <div><span>SHIPPING CHARGE</span><strong>{money(order.shippingPaise)}</strong></div>
+                          {order.deliveryMinDays !== null && order.deliveryMaxDays !== null && <div><span>ESTIMATED DELIVERY</span><strong>{order.deliveryMinDays}–{order.deliveryMaxDays} days</strong></div>}
+                        </div>
                       )}
                       {(order.carrier || order.trackingNumber) && (
                         <div className="customer-tracking-carrier">

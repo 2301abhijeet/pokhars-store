@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { ShippingChecker } from "@/components/store/shipping-checker";
 import type { Product } from "@/lib/products";
 import { subscribeToPublishedProducts } from "@/lib/firebase/catalogue";
 import { AccountMenu } from "@/components/auth/account-menu";
@@ -715,6 +716,7 @@ export default function HomePage() {
                         : "Cart saved on this device"}
                   </p>
                   <div><span>{isDemoCatalogueMode ? "Demo subtotal · sample only" : "Subtotal"}</span><strong>{formatPrice(subtotal)}</strong></div>
+                  <ShippingChecker subtotalPaise={Math.round(subtotal * 100)} />
 {isDemoCatalogueMode ? (
                     <div className="checkout-notice demo-checkout-notice">
                       <strong>DEMO BAG · CHECKOUT DISABLED</strong>
@@ -722,9 +724,7 @@ export default function HomePage() {
                     </div>
                   ) : (
                     <>
-                                        {checkoutConfig?.enabled && checkoutConfig.shippingPaise > 0 && <div><span>Test shipping</span><strong>{formatPricePaise(checkoutConfig.shippingPaise)}</strong></div>}
-                  {checkoutConfig?.enabled && <div><span>Test total</span><strong>{formatPricePaise(subtotal * 100 + checkoutConfig.shippingPaise)}</strong></div>}
-                  <p>Taxes are not included while shipping and tax settings are being decided.</p>
+                  <p>Taxes are not included. Final delivery charges are recalculated for the selected PIN code when checkout is enabled.</p>
                   {!user ? (
                     <div className="checkout-notice">Sign in to choose a saved delivery address. Checkout is in test mode only; no real payment will be taken.</div>
                   ) : savedAddresses.length === 0 ? (

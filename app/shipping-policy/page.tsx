@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { ShippingChecker } from "@/components/store/shipping-checker";
+import { getShippingSettings } from "@/lib/firebase/shipping";
 
-export default function ShippingPolicyPage() {
+export const dynamic = "force-dynamic";
+
+export default async function ShippingPolicyPage() {
+  const settings = await getShippingSettings().catch(() => null);
   return (
     <main className="site-shell shipping-policy-page">
       <div className="announcement"><span>MADE IN BIHAR</span><b>✳</b><span>DELIVERY INFORMATION</span><b>✳</b><span>SNACK HAPPY</span></div>
@@ -18,6 +22,13 @@ export default function ShippingPolicyPage() {
         <p className="shipping-policy-intro">Check whether delivery is configured for your area and see the current shipping estimate before you plan your order.</p>
 
         <ShippingChecker />
+        {settings?.enabled && (
+          <div className="shipping-policy-live-note">
+            <strong>CURRENT STORE SHIPPING NOTE</strong>
+            {settings.policyNote && <p>{settings.policyNote}</p>}
+            <p>Handling estimate configured by the store: {settings.handlingMinDays}–{settings.handlingMaxDays} days, in addition to the delivery range shown for your PIN code.</p>
+          </div>
+        )}
 
         <div className="shipping-policy-grid">
           <article className="shipping-policy-card">
