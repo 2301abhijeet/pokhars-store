@@ -661,7 +661,7 @@ export default function HomePage() {
             <p>Rooted in Bihar. Ready for your snack break.</p>
           </div>
           <div className="footer-links">
-            <div><strong>THE GOOD STUFF</strong><a href="#flavours">Flavours</a><a href="#story">Our Story</a><a href="#heritage">Mithila Vibes</a></div>
+            <div><strong>THE GOOD STUFF</strong><a href="#flavours">Flavours</a><a href="#story">Our Story</a><a href="#heritage">Mithila Vibes</a><a href="/shipping-policy">Shipping & Delivery</a></div>
             <div><strong>SAY HELLO</strong><a href="mailto:hello@pokhars.in">Email us</a><a href="#top">Back to top ↑</a></div>
           </div>
         </div>

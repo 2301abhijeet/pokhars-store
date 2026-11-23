@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AccountMenu } from "@/components/auth/account-menu";
+import { ShippingChecker } from "@/components/store/shipping-checker";
 import { useAuth } from "@/components/auth/auth-provider";
 import { mergeGuestCartIntoCloud, saveCloudCartItem, subscribeToCloudCart } from "@/lib/firebase/cart";
 import type { CartQuantities } from "@/lib/firebase/cart";
@@ -244,6 +245,7 @@ export default function ProductDetailPage() {
               <span>{product.weight}</span><span>{product.category}</span>{product.sku && <span>SKU · {product.sku}</span>}
             </div>
 
+            <ShippingChecker subtotalPaise={Math.round(product.price * 100)} />
             <button className="product-detail-add" type="button" disabled={!cartReady || adding || cartQuantity >= 20} onClick={() => void addToBag()}>
               {adding ? "ADDING…" : cartQuantity >= 20 ? "MAXIMUM QUANTITY ADDED" : isDemoCatalogueMode ? "ADD TO DEMO BAG" : "ADD TO YOUR BAG"} <b>↗</b>
             </button>
