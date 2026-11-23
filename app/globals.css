@@ -859,3 +859,18 @@ a { color: inherit; text-decoration: none; }
   .customer-test-attempt-top strong { font-size: 14px; }
   .customer-test-attempt-bottom { align-items: flex-start; flex-direction: column; gap: 6px; }
 }
+
+
+/* Admin: separate unpaid demo payment attempts from customer order activity. */
+.admin-test-attempts { margin-top: 18px; border: 1px solid rgba(5,75,54,.14); border-radius: 16px; background: rgba(255,249,235,.72); overflow: hidden; }
+.admin-test-attempts > summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 17px 20px; cursor: pointer; list-style: none; }
+.admin-test-attempts > summary::-webkit-details-marker { display: none; }
+.admin-test-attempts > summary::after { content: "＋"; margin-left: 2px; color: var(--green); font-size: 18px; }
+.admin-test-attempts[open] > summary::after { content: "−"; }
+.admin-test-attempts > summary > span:first-child { display: grid; gap: 5px; }
+.admin-test-attempts > summary strong { color: var(--green-deep); font: 700 17px var(--font-display); }
+.admin-test-attempts > summary small { color: #758276; font-size: 9px; }
+.admin-test-attempt-count { display: inline-grid; place-items: center; min-width: 27px; height: 27px; padding: 0 8px; border-radius: 999px; background: #e9e7df; color: #687568; font: 900 9px var(--font-body); }
+.admin-test-attempt-body { padding: 0 14px 14px; }
+.admin-test-attempt-body .admin-table-wrap { border-top: 1px solid rgba(5,75,54,.12); padding-top: 5px; }
+@media (max-width: 700px) { .admin-test-attempts > summary { padding: 14px; } .admin-test-attempt-body { padding: 0 8px 8px; } }
