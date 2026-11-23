@@ -19,6 +19,7 @@ type AdminOrder = {
   id: string; orderNumber?: string; userId: string; items?: Array<{ nameSnapshot: string; quantity: number; lineTotalPaise: number }>;
   totalPaise: number; status: string; paymentStatus: string; paymentMode?: string; paymentId?: string; refundedPaise?: number; refundsInFlightPaise?: number; inventoryIssue?: string; createdAt?: unknown;
   refunds?: Array<{ refundId: string; amountPaise: number; status: string; reason?: string }>;
+  shiprocketOrderId?: string; shiprocketShipmentId?: string; shiprocketAwb?: string; shiprocketStatus?: string; shiprocketDraftState?: string;
   carrier?: string; trackingNumber?: string; trackingUrl?: string;
 };
 type Coupon = { id: string; code: string; discountType: "percent" | "fixed"; discountValue: number; isActive: boolean; minOrderPaise?: number; maxDiscountPaise?: number | null; usageLimit?: number | null; usedCount?: number; reservedCount?: number; startsAt?: string | null; expiresAt?: string | null };
@@ -299,6 +300,26 @@ export default function AdminPage() {
     }
   }
 
+  async function createCourierDraft(order: AdminOrder): Promise<boolean> {
+    if (order.paymentMode === "test" || order.paymentStatus !== "paid") {
+      setError("Only captured live customer orders can be sent to Shiprocket.");
+      return false;
+    }
+    if (!window.confirm("Create a Shiprocket custom-order draft for " + (order.orderNumber ?? order.id) + "? This will NOT assign an AWB, schedule pickup or dispatch the parcel.")) return false;
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const result = await api(`/api/admin/orders/${order.id}/shipping-draft`, { method: "POST", body: JSON.stringify({}) });
+      setNotice("Shiprocket custom-order draft created. No pickup or dispatch requested. Courier order ID: " + String(result.orderId ?? "created"));
+      await loadData();
+      return true;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Shiprocket draft could not be created.");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function updateOrder(order: AdminOrder, status: string, shipment?: { carrier: string; trackingNumber: string; trackingUrl: string }) {
     setBusy(true); setError(null);
     try {
@@ -417,7 +438,7 @@ export default function AdminPage() {
             <article><span>PUBLISHED PRODUCTS</span><strong>{activeProducts}</strong><small>Active and visible in the storefront</small></article>
             <article className={lowStock.length ? "attention" : ""}><span>LOW STOCK · 5 OR FEWER</span><strong>{lowStock.length}</strong><small>{lowStock.length ? "Review inventory" : "All products above alert level"}</small></article>
           </div>
-          <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">LATEST ACTIVITY</p><h2>Recent orders</h2></div><button className="admin-link-button" onClick={() => setTab("orders")}>View all →</button></div><OrderTable orders={operationalOrders.slice(0, 5)} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} /></section>
+          <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">LATEST ACTIVITY</p><h2>Recent orders</h2></div><button className="admin-link-button" onClick={() => setTab("orders")}>View all →</button></div><OrderTable orders={operationalOrders.slice(0, 5)} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} createCourierDraft={createCourierDraft} /></section>
           <p className="admin-footnote">Revenue uses stored totals from non-test orders marked paid. Test orders are labeled and excluded. Refunds, fees and settlement reconciliation are not included.</p>
         </>}
         {tab === "products" && <div className="admin-products-layout">
@@ -499,7 +520,7 @@ export default function AdminPage() {
               <div><p className="admin-eyebrow">CUSTOMER ORDERS</p><h2>Orders</h2></div>
               <span className="admin-pill muted">{operationalOrders.length} orders</span>
             </div>
-            <OrderTable orders={operationalOrders} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} />
+            <OrderTable orders={operationalOrders} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} createCourierDraft={createCourierDraft} />
           </section>
           {unpaidTestAttempts.length > 0 && (
             <details className="admin-test-attempts">
@@ -508,7 +529,7 @@ export default function AdminPage() {
                 <span className="admin-test-attempt-count">{unpaidTestAttempts.length}</span>
               </summary>
               <div className="admin-test-attempt-body">
-                <OrderTable orders={unpaidTestAttempts} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} />
+                <OrderTable orders={unpaidTestAttempts} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} createCourierDraft={createCourierDraft} />
               </div>
             </details>
           )}
@@ -590,7 +611,7 @@ export default function AdminPage() {
 
 function EmptyState({ children }: { children: React.ReactNode }) { return <div className="admin-empty">{children}</div>; }
 
-function OrderTable({ orders, busy, updateOrder, refundOrder }: { orders: AdminOrder[]; busy: boolean; updateOrder: (order: AdminOrder, status: string, shipment?: { carrier: string; trackingNumber: string; trackingUrl: string }) => Promise<void>; refundOrder: (order: AdminOrder, amountPaise?: number) => Promise<void> }) {
+function OrderTable({ orders, busy, updateOrder, refundOrder, createCourierDraft }: { orders: AdminOrder[]; busy: boolean; updateOrder: (order: AdminOrder, status: string, shipment?: { carrier: string; trackingNumber: string; trackingUrl: string }) => Promise<void>; refundOrder: (order: AdminOrder, amountPaise: number | undefined, idempotencyKey: string) => Promise<boolean>; createCourierDraft: (order: AdminOrder) => Promise<boolean> }) {
   const [shipmentDrafts, setShipmentDrafts] = useState<Record<string, { carrier: string; trackingNumber: string; trackingUrl: string }>>({});
   const [refundDrafts, setRefundDrafts] = useState<Record<string, string>>({});
   const [refundKeys, setRefundKeys] = useState<Record<string, { key: string; amountPaise?: number }>>({});
@@ -652,6 +673,18 @@ function OrderTable({ orders, busy, updateOrder, refundOrder }: { orders: AdminO
                   INITIATE REFUND
                 </button>
                 <small>Test payments create simulated refunds. Live refunds require live API credentials and a separately enabled server flag.</small>
+              </div>
+            )}
+            {order.shiprocketStatus && <small>Shiprocket: {order.shiprocketStatus}</small>}
+            {order.shiprocketOrderId && <small>Courier draft ID: {order.shiprocketOrderId} · Shipment: {order.shiprocketShipmentId ?? "Pending"}</small>}
+            {order.shiprocketDraftState === "needs_review" && <small>Shiprocket draft needs manual reconciliation before retrying.</small>}
+            {order.paymentMode !== "test" && order.paymentStatus === "paid" && !order.demoOrder && !order.shiprocketOrderId && order.shiprocketDraftState !== "needs_review" && (
+              <div className="admin-shipment-editor">
+                <p className="admin-shipment-heading">SHIPROCKET DRAFT</p>
+                <small>This creates the courier order only. AWB assignment and pickup remain manual.</small>
+                <button className="admin-row-button" disabled={busy || order.shiprocketDraftState === "creating"} onClick={() => void createCourierDraft(order)}>
+                  {order.shiprocketDraftState === "creating" ? "CREATING DRAFT…" : "CREATE SHIPROCKET DRAFT"}
+                </button>
               </div>
             )}
             {order.carrier && <small>Courier: {order.carrier}</small>}
