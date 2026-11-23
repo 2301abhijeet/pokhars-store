@@ -132,12 +132,11 @@ export async function releaseReservation(
 
 export async function markOrderPaid(orderRef: DocumentReference<DocumentData>, paymentId: string) {
   const db = adminDb();
-  let emailDetails: { to: string; orderNumber: string; demoOrder: boolean } | null = null;
-  await db.runTransaction(async (transaction) => {
+  const emailDetails = await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(orderRef);
-    if (!snapshot.exists) return;
+    if (!snapshot.exists) return null;
     const order = snapshot.data()!;
-    if (order.paymentStatus === "paid" || order.paymentMode !== "test") return;
+    if (order.paymentStatus === "paid" || order.paymentMode !== "test") return null;
     const couponRef = typeof order.couponCode === "string" && order.couponUseReserved === true
       ? db.collection("coupons").doc(order.couponCode) : null;
     const couponSnapshot = couponRef ? await transaction.get(couponRef) : null;
@@ -169,8 +168,9 @@ export async function markOrderPaid(orderRef: DocumentReference<DocumentData>, p
       updatedAt: FieldValue.serverTimestamp(),
     });
     if (typeof order.customerEmail === "string" && order.customerEmail) {
-      emailDetails = { to: order.customerEmail, orderNumber: String(order.orderNumber ?? orderRef.id), demoOrder: order.demoOrder === true };
+      return { to: order.customerEmail, orderNumber: String(order.orderNumber ?? orderRef.id), demoOrder: order.demoOrder === true };
     }
+    return null;
   });
 
   if (emailDetails) {
