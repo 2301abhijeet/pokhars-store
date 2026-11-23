@@ -55,8 +55,13 @@ export async function POST(request: Request, context: Context) {
 
   const gatewayRefundedPaise = gatewayRefunds.filter((item) => item.status === "processed").reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const requestRef = db.collection("refundRequests").doc(idempotencyKey);
+  const existingRequestSnapshot = await requestRef.get();
+  if (existingRequestSnapshot.exists && existingRequestSnapshot.data()?.state === "processed") {
+    const prior = existingRequestSnapshot.data()!;
+    if (prior.orderId !== orderId) return jsonError("This idempotency key belongs to another order.", 409);
+    return Response.json({ ok: true, refundId: prior.refundId, amountPaise: prior.amountPaise, status: prior.refundStatus, duplicate: true });
+  }
   let amountPaise = Number(payload.amountPaise ?? 0);
-  let completed: { refundId: string; amountPaise: number; status: string } | null = null;
   let reservationError: string | null = null;
 
   await db.runTransaction(async (transaction) => {
@@ -66,10 +71,7 @@ export async function POST(request: Request, context: Context) {
     if (existingRequest.exists) {
       const prior = existingRequest.data()!;
       if (prior.orderId !== orderId) throw new Error("REFUND_KEY_CONFLICT");
-      if (prior.state === "processed") {
-        completed = { refundId: String(prior.refundId), amountPaise: Number(prior.amountPaise), status: String(prior.refundStatus) };
-        return;
-      }
+      if (prior.state === "processed") return;
       if (prior.state === "failed") throw new Error("REFUND_PREVIOUSLY_FAILED");
       if (!["pending", "submitted"].includes(String(prior.state))) throw new Error("REFUND_REQUEST_STATE");
       if (payload.amountPaise !== undefined && Number(payload.amountPaise) !== Number(prior.amountPaise)) throw new Error("REFUND_KEY_CONFLICT");
@@ -90,7 +92,6 @@ export async function POST(request: Request, context: Context) {
     transaction.update(orderRef, { refundsInFlightPaise: FieldValue.increment(amountPaise), updatedAt: FieldValue.serverTimestamp() });
   }).catch((cause) => { reservationError = cause instanceof Error ? cause.message : "REFUND_RESERVATION_FAILED"; });
 
-  if (completed) return Response.json({ ok: true, refundId: completed.refundId, amountPaise: completed.amountPaise, status: completed.status, duplicate: true });
   if (reservationError === "ORDER_NOT_FOUND") return jsonError("Order not found.", 404);
   if (reservationError === "REFUND_KEY_CONFLICT") return jsonError("This idempotency key is already associated with a different order or amount.", 409);
   if (reservationError === "REFUND_AMOUNT_INVALID") return jsonError("The requested amount exceeds the remaining refundable balance.", 409);
