@@ -1,5 +1,6 @@
 import { FieldValue } from "firebase-admin/firestore";
-import { adminDb, adminOrResponse, isRecord, isResponse, jsonError } from "@/lib/firebase/admin";
+import { adminDb, adminOrResponse, isResponse, jsonError } from "@/lib/firebase/admin";
+import { isRecord } from "@/lib/firebase/admin-validation";
 import { emptyShippingSettings, validateShippingSettings } from "@/lib/firebase/shipping";
 
 export const runtime = "nodejs";
