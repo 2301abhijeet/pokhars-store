@@ -346,6 +346,21 @@ export default function AdminPage() {
     }
   }
 
+  async function sendTestTrackingEmail(order: AdminOrder) {
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      await api(`/api/admin/orders/${order.id}/test-tracking-email`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setNotice(`Sample courier tracking email sent for order ${order.orderNumber ?? order.id}. No courier booking or shipment was created.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Sample tracking email could not be sent.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function updateShippingZone(index: number, patch: Partial<ShippingZoneForm>) {
     setShippingForm((current) => ({
       ...current,
@@ -682,6 +697,10 @@ function OrderTable({ orders, busy, updateOrder, refundOrder, createCourierDraft
                 <button className="admin-row-button" disabled={busy} onClick={() => void sendTestStatusEmail(order, testStatusDrafts[order.id] ?? "processing")}>
                   SEND SAMPLE STATUS EMAIL
                 </button>
+                <button className="admin-row-button" disabled={busy} onClick={() => void sendTestTrackingEmail(order)}>
+                  SEND SAMPLE TRACKING EMAIL
+                </button>
+                <small>Uses a demo courier, demo AWB and example.com tracking link. No real courier booking, AWB assignment, pickup or dispatch is performed.</small>
               </div>
             )}
             {order.paymentId && ["paid", "partially_refunded"].includes(order.paymentStatus) && (
