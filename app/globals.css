@@ -654,3 +654,56 @@ a { color: inherit; text-decoration: none; }
 .admin-demo-notice strong { font-size: 10px; letter-spacing: .08em; }
 .admin-demo-notice span { font-size: 11px; line-height: 1.6; }
 @media (max-width: 560px) { .product-demo-banner { width: 90%; } }
+
+
+/* Customer account and order history */
+.customer-account-page { min-height: 100vh; }
+.customer-account-header { min-height: 76px; }
+.customer-account-nav { display: flex; align-items: center; gap: clamp(14px, 2.4vw, 30px); }
+.customer-account-nav a { color: var(--cream); font: 900 8px var(--font-body); letter-spacing: .12em; text-decoration: none; }
+.customer-account-nav a:hover { color: var(--yellow); }
+.customer-account-content { width: min(1080px, 86%); min-height: 68vh; margin: 0 auto; padding: 62px 0 82px; }
+.customer-account-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 28px; }
+.customer-account-heading h1 { margin: 0; color: var(--cream); font: 400 clamp(42px, 6vw, 66px)/1 var(--font-display); }
+.customer-account-heading h1 span { color: var(--yellow); }
+.customer-account-heading p:not(.section-kicker) { max-width: 470px; margin: 12px 0 0; color: rgba(255,240,207,.78); font-size: 12px; line-height: 1.8; }
+.customer-profile-card { display: flex; align-items: center; gap: 17px; padding: 21px 24px; border: 1px solid rgba(255,240,207,.18); border-radius: 20px; background: rgba(255,240,207,.08); color: var(--cream); }
+.customer-profile-avatar { flex: 0 0 52px; width: 52px; height: 52px; overflow: hidden; display: grid; place-items: center; border-radius: 50%; background: var(--yellow); color: var(--green-deep); font: 900 20px var(--font-display); }
+.customer-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.customer-profile-copy { min-width: 0; flex: 1; }
+.customer-profile-kicker, .customer-order-kicker { margin: 0 0 5px; color: var(--yellow); font: 900 8px var(--font-body); letter-spacing: .14em; }
+.customer-profile-copy h2 { margin: 0; font: 400 23px var(--font-display); overflow-wrap: anywhere; }
+.customer-profile-copy p:last-child { margin: 4px 0 0; color: rgba(255,240,207,.72); font-size: 10px; overflow-wrap: anywhere; }
+.customer-profile-link { color: var(--yellow); font: 900 8px var(--font-body); letter-spacing: .1em; text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: 4px; }
+.customer-account-demo { margin-top: 18px; }
+.customer-orders-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin: 42px 0 19px; }
+.customer-orders-heading h2 { margin: 0; color: var(--cream); font: 400 34px var(--font-display); }
+.customer-orders-heading > span { color: var(--yellow); font: 900 8px var(--font-body); letter-spacing: .13em; }
+.customer-account-empty { min-height: 205px; padding: 30px 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 11px; border: 1px dashed rgba(255,240,207,.3); border-radius: 22px; text-align: center; color: var(--cream); }
+.customer-account-empty h2 { margin: 0; font: 400 25px var(--font-display); }
+.customer-account-empty p { max-width: 470px; margin: 0 0 8px; color: rgba(255,240,207,.72); font-size: 11px; line-height: 1.75; }
+.customer-account-icon { width: 45px; height: 45px; display: grid; place-items: center; border-radius: 50%; background: var(--pink); color: var(--green-deep); font: 900 19px var(--font-display); }
+.customer-account-error { padding: 11px 13px; border-radius: 9px; background: #fbe0d9; color: #9b2825; font-size: 10px; line-height: 1.6; }
+.customer-orders-list { display: grid; gap: 15px; }
+.customer-order-card { padding: 20px 22px; border-radius: 18px; background: var(--cream); color: var(--green-deep); box-shadow: 0 5px 0 rgba(0,0,0,.07); }
+.customer-order-top, .customer-order-bottom { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.customer-order-top h3 { margin: 0; font: 400 21px var(--font-display); overflow-wrap: anywhere; }
+.customer-order-top > div:first-child > span { display: block; margin-top: 5px; color: #728176; font-size: 9px; }
+.customer-order-status { display: inline-flex; align-items: center; gap: 7px; color: var(--green); font-size: 9px; font-weight: 800; text-transform: uppercase; text-align: right; }
+.customer-order-status-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: #7b8b7e; }
+.customer-order-status-dot.status-delivered { background: #277e4e; }
+.customer-order-status-dot.status-cancelled, .customer-order-status-dot.status-refunded, .customer-order-status-dot.status-failed { background: #b24a3a; }
+.customer-order-items { display: grid; gap: 8px; margin: 16px 0; padding: 13px 0; border-top: 1px solid rgba(5,75,54,.12); border-bottom: 1px solid rgba(5,75,54,.12); }
+.customer-order-item { display: flex; justify-content: space-between; gap: 14px; color: #53685c; font-size: 10px; }
+.customer-order-item strong { color: var(--green-deep); white-space: nowrap; }
+.customer-order-bottom { color: #64766c; font: 900 8px var(--font-body); letter-spacing: .1em; }
+.customer-order-bottom strong { color: var(--green-deep); font-size: 15px; letter-spacing: 0; }
+@media (max-width: 700px) {
+  .customer-account-header { min-height: 68px; flex-wrap: wrap; gap: 12px; padding: 11px 5%; }
+  .customer-account-nav { order: 3; width: 100%; justify-content: space-between; }
+  .customer-account-content { width: 90%; padding: 43px 0 60px; }
+  .customer-profile-card { align-items: flex-start; flex-wrap: wrap; padding: 17px; }
+  .customer-profile-link { margin-left: 69px; }
+  .customer-orders-heading h2 { font-size: 29px; }
+  .customer-order-card { padding: 17px; }
+}

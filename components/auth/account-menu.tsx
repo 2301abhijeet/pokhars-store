@@ -61,6 +61,9 @@ export function AccountMenu() {
               <p className="account-popover-copy">
                 Your customer profile is connected. Manage your delivery details below.
               </p>
+              <Link className="account-action account-orders-link" href="/account" onClick={() => setOpen(false)}>
+                ACCOUNT & ORDER HISTORY
+              </Link>
               <Link className="account-action account-address-link" href="/account/addresses" onClick={() => setOpen(false)}>
                 MANAGE DELIVERY ADDRESSES
               </Link>
