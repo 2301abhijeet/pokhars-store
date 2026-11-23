@@ -3,6 +3,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb, jsonError, verifySignedInUser } from "@/lib/firebase/admin";
 import { checkoutConfig, razorpayRequest, releaseExpiredReservations, releaseReservation } from "@/lib/firebase/razorpay";
 import { isPlaceholderProductValue, isValidFssaiNumber } from "@/lib/firebase/admin-validation";
+import { quoteShipping, validateShippingSettings } from "@/lib/firebase/shipping";
 
 export const runtime = "nodejs";
 
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
   if (prior.exists) return jsonError("This checkout attempt is already being processed. Refresh your bag and try again.", 409);
 
   const addressRef = db.collection("users").doc(user.uid).collection("addresses").doc(payload.addressId);
+  const shippingSettingsRef = db.collection("settings").doc("shipping");
   const orderRef = db.collection("orders").doc();
   const orderNumber = `PK-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString("hex").toUpperCase()}`;
   const productRefs = items.map((item) => db.collection("products").doc(item.productId));
@@ -71,17 +73,25 @@ export async function POST(request: Request) {
     totalPaise: number;
     orderItems: Array<{ productId: string; nameSnapshot: string; unitPricePaise: number; quantity: number; lineTotalPaise: number }>;
     shippingAddress: Record<string, string>;
+    shippingPaise: number;
+    shippingZoneName: string;
+    deliveryMinDays: number;
+    deliveryMaxDays: number;
   };
 
   try {
     prepared = await db.runTransaction(async (transaction) => {
-      const [requestSnapshot, addressSnapshot, ...productSnapshots] = await Promise.all([
+      const [requestSnapshot, addressSnapshot, shippingSettingsSnapshot, ...productSnapshots] = await Promise.all([
         transaction.get(checkoutRequestRef),
         transaction.get(addressRef),
+        transaction.get(shippingSettingsRef),
         ...productRefs.map((ref) => transaction.get(ref)),
       ]);
       if (requestSnapshot.exists) throw new Error("CHECKOUT_REQUEST_EXISTS");
       if (!addressSnapshot.exists) throw new Error("ADDRESS_NOT_FOUND");
+      if (!shippingSettingsSnapshot.exists) throw new Error("SHIPPING_NOT_CONFIGURED");
+      const shippingValidation = validateShippingSettings(shippingSettingsSnapshot.data());
+      if (!shippingValidation.settings) throw new Error("SHIPPING_NOT_CONFIGURED");
       const address = addressSnapshot.data()!;
       if (typeof address.recipientName !== "string" || typeof address.phone !== "string" || typeof address.line1 !== "string" ||
           typeof address.city !== "string" || typeof address.state !== "string" || typeof address.pincode !== "string") throw new Error("ADDRESS_INVALID");
@@ -122,7 +132,11 @@ export async function POST(request: Request) {
         quantity: item.quantity,
         lineTotalPaise: item.lineTotalPaise,
       }));
-      const totalPaise = subtotal + config.shippingPaise;
+      const shippingQuote = quoteShipping(shippingValidation.settings, shippingAddress.pincode, subtotal);
+      if (!shippingQuote.configured) throw new Error("SHIPPING_NOT_CONFIGURED");
+      if (!shippingQuote.serviceable) throw new Error("PINCODE_NOT_SERVICEABLE");
+      const shippingPaise = shippingQuote.shippingFeePaise;
+      const totalPaise = subtotal + shippingPaise;
       if (!Number.isSafeInteger(totalPaise) || totalPaise > 100_000_000) throw new Error("TOTAL_INVALID");
       const expiresAt = Timestamp.fromMillis(Date.now() + 30 * 60 * 1000);
 
@@ -131,7 +145,10 @@ export async function POST(request: Request) {
         orderNumber,
         items: orderItems,
         subtotalPaise: subtotal,
-        shippingPaise: config.shippingPaise,
+        shippingPaise,
+        shippingZoneName: shippingQuote.zoneName,
+        deliveryMinDays: shippingQuote.deliveryMinDays,
+        deliveryMaxDays: shippingQuote.deliveryMaxDays,
         discountPaise: 0,
         totalPaise,
         status: "pending_payment",
@@ -156,7 +173,11 @@ export async function POST(request: Request) {
         requestId: payload.requestId,
         createdAt: FieldValue.serverTimestamp(),
       });
-      return { subtotalPaise: subtotal, totalPaise, orderItems, shippingAddress };
+      return {
+        subtotalPaise: subtotal, totalPaise, orderItems, shippingAddress,
+        shippingPaise, shippingZoneName: shippingQuote.zoneName,
+        deliveryMinDays: shippingQuote.deliveryMinDays, deliveryMaxDays: shippingQuote.deliveryMaxDays,
+      };
     });
   } catch (cause) {
     const code = cause instanceof Error ? cause.message : "";
@@ -164,6 +185,8 @@ export async function POST(request: Request) {
       CHECKOUT_REQUEST_EXISTS: ["This checkout attempt is already being processed. Refresh your bag and try again.", 409],
       ADDRESS_NOT_FOUND: ["That delivery address was not found. Refresh your saved addresses and try again.", 404],
       ADDRESS_INVALID: ["That delivery address is incomplete. Update it before checkout.", 400],
+      SHIPPING_NOT_CONFIGURED: ["Delivery zones are not configured yet. Please try again later.", 503],
+      PINCODE_NOT_SERVICEABLE: ["We do not currently deliver to this PIN code. Please choose another saved address.", 409],
       PRODUCT_NOT_FOUND: ["A product in your bag is no longer available.", 409],
       PRODUCT_UNAVAILABLE: ["A product in your bag is no longer published for sale.", 409],
       INSUFFICIENT_STOCK: ["There is not enough stock for one or more products in your bag.", 409],
@@ -191,7 +214,18 @@ export async function POST(request: Request) {
       transaction.update(orderRef, { razorpayOrderId: razorpayOrder.id, updatedAt: FieldValue.serverTimestamp() });
       transaction.update(checkoutRequestRef, { state: "ready", razorpayOrderId: razorpayOrder.id, updatedAt: FieldValue.serverTimestamp() });
     });
-    return Response.json({ orderId: orderRef.id, orderNumber, razorpayOrderId: razorpayOrder.id, amount: totalPaise, currency: "INR", keyId: config.keyId }, { status: 201 });
+    return Response.json({
+    orderId: orderRef.id,
+    orderNumber,
+    razorpayOrderId: razorpayOrder.id,
+    amount: totalPaise,
+    currency: "INR",
+    keyId: config.keyId,
+    shippingPaise: prepared.shippingPaise,
+    shippingZoneName: prepared.shippingZoneName,
+    deliveryMinDays: prepared.deliveryMinDays,
+    deliveryMaxDays: prepared.deliveryMaxDays,
+  }, { status: 201 });
   } catch {
     await releaseReservation(orderRef, { status: "failed", reason: "Payment service could not create a test order." }).catch(() => undefined);
     await checkoutRequestRef.update({ state: "failed", updatedAt: FieldValue.serverTimestamp() }).catch(() => undefined);
