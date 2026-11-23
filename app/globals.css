@@ -707,3 +707,39 @@ a { color: inherit; text-decoration: none; }
   .customer-orders-heading h2 { font-size: 29px; }
   .customer-order-card { padding: 17px; }
 }
+
+
+/* Customer delivery tracking timeline */
+.customer-tracking { margin: 17px 0; padding: 15px 16px; border: 1px solid rgba(5,75,54,.13); border-radius: 14px; background: rgba(5,75,54,.045); }
+.customer-tracking-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--green); font: 900 8px var(--font-body); letter-spacing: .12em; }
+.customer-tracking-head strong { color: var(--green-deep); text-align: right; text-transform: uppercase; }
+.customer-tracking-steps { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; list-style: none; margin: 15px 0 4px; padding: 0; }
+.customer-tracking-steps li { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; color: #8a988d; font-size: 8px; font-weight: 700; text-align: center; }
+.customer-tracking-step-dot { width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid rgba(5,75,54,.22); border-radius: 50%; background: #fff9eb; color: #748276; font-size: 9px; }
+.customer-tracking-steps li.is-complete { color: var(--green); }
+.customer-tracking-steps li.is-complete .customer-tracking-step-dot { border-color: var(--green); background: var(--green); color: var(--cream); }
+.customer-tracking-note { margin: 12px 0 0; color: #657569; font-size: 10px; }
+.customer-tracking-carrier { display: flex; flex-wrap: wrap; align-items: center; gap: 15px 24px; margin-top: 15px; padding-top: 13px; border-top: 1px solid rgba(5,75,54,.12); }
+.customer-tracking-carrier > div { display: grid; gap: 4px; min-width: 130px; }
+.customer-tracking-carrier span { color: #718075; font: 900 7px var(--font-body); letter-spacing: .12em; }
+.customer-tracking-carrier strong { color: var(--green-deep); font-size: 10px; overflow-wrap: anywhere; }
+.customer-tracking-carrier a { color: var(--green); font: 900 8px var(--font-body); letter-spacing: .1em; text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: 3px; }
+.customer-tracking-history { display: grid; gap: 11px; margin-top: 15px; padding-top: 13px; border-top: 1px solid rgba(5,75,54,.12); }
+.customer-tracking-history > div { display: flex; align-items: flex-start; gap: 9px; }
+.customer-history-dot { width: 7px; height: 7px; flex: 0 0 7px; margin-top: 4px; border-radius: 50%; background: var(--coral); }
+.customer-tracking-history strong { display: block; color: var(--green-deep); font-size: 9px; }
+.customer-tracking-history p { margin: 3px 0 0; color: #5f7165; font-size: 9px; line-height: 1.5; }
+.customer-tracking-history small { display: block; margin-top: 3px; color: #849087; font-size: 8px; }
+.customer-orders-actions { display: flex; align-items: center; gap: 12px; }
+.customer-orders-refresh { padding: 6px 9px; border: 1px solid rgba(255,240,207,.35); border-radius: 999px; background: transparent; color: var(--cream); font: 900 7px var(--font-body); letter-spacing: .08em; cursor: pointer; }
+.customer-orders-refresh:disabled { opacity: .55; cursor: wait; }
+.admin-shipment-editor { display: grid; gap: 8px; min-width: 220px; margin-top: 13px; padding-top: 12px; border-top: 1px solid rgba(5,75,54,.13); }
+.admin-shipment-editor > label { display: grid; gap: 4px; color: #67766c; font-size: 8px; font-weight: 800; }
+.admin-shipment-editor input { width: 100%; min-height: 31px; padding: 0 8px; border: 1px solid rgba(5,75,54,.22); border-radius: 7px; background: #fffaf0; color: var(--green-deep); font-size: 9px; }
+.admin-shipment-heading { margin: 0; color: var(--green); font: 900 8px var(--font-body); letter-spacing: .12em; }
+@media (max-width: 560px) {
+  .customer-tracking-steps { gap: 3px; }
+  .customer-tracking-steps li { font-size: 7px; }
+  .customer-tracking-carrier { gap: 12px; }
+  .customer-orders-actions { align-items: flex-end; flex-direction: column; }
+}

@@ -78,6 +78,12 @@ export type OrderDocument = {
   stockReserved?: boolean;
   reservationExpiresAt?: Timestamp;
   inventoryIssue?: string;
+  carrier?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+  shippedAt?: Timestamp;
+  deliveredAt?: Timestamp;
+  statusHistory?: Array<{ status: string; event?: string; note: string; occurredAt: string }>;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };

@@ -23,7 +23,7 @@ The storefront is being built in two stages:
 - Flavour filtering and product cards
 - Cart with quantity controls
 - Customer sign-in, profile and saved addresses
-- Secure checkout, payment and order tracking
+- Secure checkout, payment and customer order tracking with courier AWB/details
 - Admin product, inventory and order management
 
 ## Design direction
@@ -84,7 +84,7 @@ The private admin dashboard is available at `/admin`. It uses the existing Googl
 
 Use `ADMIN_EMAILS` with a comma-separated list of verified addresses only if you prefer email bootstrapping. Avoid setting both allowlists broadly. Remove a UID/email from Vercel and redeploy to revoke this bootstrap role. Alternatively, a trusted Admin SDK operator can set the custom claim on the exact intended UID (`setCustomUserClaims(uid, { admin: true })`); never expose that operation in a public route. The dashboard does not promote the current user or set claims automatically.
 
-The Admin SDK bypasses Firestore Security Rules, so every route performs server-side authorization and input validation before touching Firestore. Client Firestore writes remain denied by the current rules. Product deletion archives by setting the product inactive and draft; only non-test paid orders can move confirmed → processing → shipped → delivered, and payment/refund state is not changed. Coupon records can be created and deactivated, but cannot be activated or applied by checkout. Images currently use the existing single `imageUrl` field; uploading files and multi-image galleries need a storage/schema milestone.
+The Admin SDK bypasses Firestore Security Rules, so every route performs server-side authorization and input validation before touching Firestore. Admin order fulfilment only allows paid, non-test orders to move confirmed → processing → shipped → delivered. Marking an order shipped requires a courier name and tracking/AWB number; optional tracking links must use HTTPS. Each fulfilment change and tracking edit is recorded in a status-history array and returned only to the authenticated order owner through /api/account/orders. Customer account pages show a delivery progress timeline and courier details; the customer can refresh the status manually. Email/WhatsApp notifications are not configured yet and require a separate provider/sender setup. Client Firestore writes remain denied by the current rules. Product deletion archives by setting the product inactive and draft; only non-test paid orders can move confirmed → processing → shipped → delivered, and payment/refund state is not changed. Coupon records can be created and deactivated, but cannot be activated or applied by checkout. Images currently use the existing single `imageUrl` field; uploading files and multi-image galleries need a storage/schema milestone.
 
 Sales are calculated only from non-test order documents returned by the admin API and marked `paymentStatus: "paid"`. Test orders are labeled and excluded from sales and fulfilment. The current dashboard loads the latest 200 orders, so the overview is a recent loaded-order view, not a lifetime accounting ledger.
 

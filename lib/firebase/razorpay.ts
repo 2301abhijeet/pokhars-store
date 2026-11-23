@@ -107,6 +107,11 @@ export async function markOrderPaid(orderRef: DocumentReference<DocumentData>, p
     if (order.paymentStatus === "paid" || order.paymentMode !== "test") return;
     transaction.update(orderRef, {
       status: "confirmed",
+      statusHistory: FieldValue.arrayUnion({
+        status: "confirmed",
+        note: "Payment confirmed. Your order is now confirmed.",
+        occurredAt: new Date().toISOString(),
+      }),
       paymentStatus: "paid",
       paymentMode: "test",
       paymentId,

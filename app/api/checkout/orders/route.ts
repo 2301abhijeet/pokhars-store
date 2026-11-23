@@ -135,6 +135,11 @@ export async function POST(request: Request) {
         discountPaise: 0,
         totalPaise,
         status: "pending_payment",
+        statusHistory: [{
+          status: "pending_payment",
+          note: "Order created. Waiting for payment confirmation.",
+          occurredAt: new Date().toISOString(),
+        }],
         paymentStatus: "created",
         paymentMode: "test",
         // Test purchases never consume or reserve real storefront inventory.
