@@ -153,6 +153,10 @@ export default function AdminPage() {
   useEffect(() => { if (!loading && user) void loadData(); else if (!user) setAuthorized(false); }, [loading, user, loadData]);
 
   const lowStock = products.filter((product) => product.stockQuantity <= 5);
+  // Keep unpaid demo checkout attempts in the admin audit trail, but out of
+  // normal order activity. Only captured test payments remain in the main list.
+  const unpaidTestAttempts = orders.filter((order) => order.paymentMode === "test" && order.paymentStatus !== "paid");
+  const operationalOrders = orders.filter((order) => order.paymentMode !== "test" || order.paymentStatus === "paid");
   const paidOrders = orders.filter((order) => order.paymentStatus === "paid" && order.paymentMode !== "test");
   const revenue = paidOrders.reduce((sum, order) => sum + (Number(order.totalPaise) || 0), 0);
   const paidCount = paidOrders.length;
@@ -363,16 +367,16 @@ export default function AdminPage() {
       </aside>
       <section className="admin-main">
         <header className="admin-topbar"><div><p className="admin-eyebrow">POKHAR’S · OPERATIONS</p><h1>{tabs.find(([id]) => id === tab)?.[1]}</h1></div><button className="admin-secondary" onClick={() => void loadData()}>Refresh data</button></header>
-        {isDemoCatalogueMode && <div className="admin-alert warning admin-demo-notice" role="status"><strong>DEMO CATALOGUE MODE · NOT FOR SALE</strong><span>Sample product names, images, prices and food-label details are allowed for website development. Test the admin and storefront freely; all checkout and payments are disabled.</span></div>}
+        {isDemoCatalogueMode && <div className="admin-alert warning admin-demo-notice" role="status"><strong>DEMO CATALOGUE MODE · NOT FOR SALE</strong><span>Sample products are for website development and Razorpay Test Mode only. Demo payments are simulations; no demo orders are dispatched, no stock is reduced and no demo payment is counted as live sales.</span></div>}
         {error && <div className="admin-alert error" role="alert">{error}</div>}{notice && <div className="admin-alert success" role="status">{notice}</div>}
         {tab === "overview" && <>
           <div className="admin-metrics">
             <article><span>LIVE PAID REVENUE · LOADED ORDERS</span><strong>{money(revenue)}</strong><small>From {paidCount} live order{paidCount === 1 ? "" : "s"} marked paid</small></article>
-            <article><span>LIVE PAID ORDERS</span><strong>{paidCount}</strong><small>{orders.length} actual order records loaded; test orders excluded</small></article>
+            <article><span>LIVE PAID ORDERS</span><strong>{paidCount}</strong><small>{unpaidTestAttempts.length} unpaid test attempts kept separate from order activity</small></article>
             <article><span>PUBLISHED PRODUCTS</span><strong>{activeProducts}</strong><small>Active and visible in the storefront</small></article>
             <article className={lowStock.length ? "attention" : ""}><span>LOW STOCK · 5 OR FEWER</span><strong>{lowStock.length}</strong><small>{lowStock.length ? "Review inventory" : "All products above alert level"}</small></article>
           </div>
-          <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">LATEST ACTIVITY</p><h2>Recent orders</h2></div><button className="admin-link-button" onClick={() => setTab("orders")}>View all →</button></div><OrderTable orders={orders.slice(0, 5)} busy={busy} updateOrder={updateOrder} /></section>
+          <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">LATEST ACTIVITY</p><h2>Recent orders</h2></div><button className="admin-link-button" onClick={() => setTab("orders")}>View all →</button></div><OrderTable orders={operationalOrders.slice(0, 5)} busy={busy} updateOrder={updateOrder} /></section>
           <p className="admin-footnote">Revenue uses stored totals from non-test orders marked paid. Test orders are labeled and excluded. Refunds, fees and settlement reconciliation are not included.</p>
         </>}
         {tab === "products" && <div className="admin-products-layout">
@@ -448,7 +452,26 @@ export default function AdminPage() {
           <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">{products.length} TOTAL</p><h2>Products</h2></div></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th /></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><strong>{product.name}</strong><small>{product.sku ? product.sku + " · " : ""}{product.flavour} · {product.category} · {product.netWeightGrams} g</small></td><td><strong>{money(product.pricePaise)}</strong>{product.mrpPaise && product.mrpPaise > product.pricePaise ? <small>MRP {money(product.mrpPaise)}</small> : null}</td><td>{product.stockQuantity}</td><td><span className={`admin-pill ${product.visibility === "published" && product.isActive ? "green" : "muted"}`}>{product.isActive ? product.visibility : "inactive"}</span>{isDemoCatalogueMode && <small>DEMO · NOT FOR SALE</small>}{missingPublishDetails(product).length > 0 && <small>{missingPublishDetails(product).length} publish details missing</small>}</td><td className="admin-row-actions"><button onClick={() => editProduct(product)}>Edit</button><button onClick={() => void archiveProduct(product)}>{product.isActive ? "Hide" : "Hidden"}</button></td></tr>)}</tbody></table>{products.length === 0 && <EmptyState>No product documents were found.</EmptyState>}</div></section>
         </div>}
         {tab === "inventory" && <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">STOCK CONTROL</p><h2>Inventory</h2></div><span className="admin-pill amber">Alert at 5 units</span></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Product</th><th>On hand</th><th>Storefront</th><th>Action</th></tr></thead><tbody>{products.slice().sort((a, b) => a.stockQuantity - b.stockQuantity).map((product) => <tr key={product.id}><td><strong>{product.name}</strong><small>{product.category} · {product.netWeightGrams} g</small></td><td><strong className={product.stockQuantity <= 5 ? "stock-low" : ""}>{product.stockQuantity}</strong></td><td>{product.isActive && product.visibility === "published" ? "Published" : "Hidden"}</td><td><button className="admin-row-button" onClick={() => editProduct(product)}>Adjust stock</button></td></tr>)}</tbody></table></div></section>}
-        {tab === "orders" && <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">CUSTOMER ORDERS</p><h2>Orders</h2></div><span className="admin-pill muted">Latest 200</span></div><OrderTable orders={orders} busy={busy} updateOrder={updateOrder} /></section>}
+        {tab === "orders" && <>
+          <section className="admin-panel">
+            <div className="admin-panel-heading">
+              <div><p className="admin-eyebrow">CUSTOMER ORDERS</p><h2>Orders</h2></div>
+              <span className="admin-pill muted">{operationalOrders.length} orders</span>
+            </div>
+            <OrderTable orders={operationalOrders} busy={busy} updateOrder={updateOrder} />
+          </section>
+          {unpaidTestAttempts.length > 0 && (
+            <details className="admin-test-attempts">
+              <summary>
+                <span><strong>Unpaid test attempts</strong><small>Expired, failed or incomplete demo checkouts · retained for audit only</small></span>
+                <span className="admin-test-attempt-count">{unpaidTestAttempts.length}</span>
+              </summary>
+              <div className="admin-test-attempt-body">
+                <OrderTable orders={unpaidTestAttempts} busy={busy} updateOrder={updateOrder} />
+              </div>
+            </details>
+          )}
+        </>}
         {tab === "shipping" && (
           <div className="admin-products-layout shipping-admin-layout">
             <section className="admin-panel admin-form-panel">
@@ -581,7 +604,7 @@ function OrderTable({ orders, busy, updateOrder }: { orders: AdminOrder[]; busy:
       </td>
       <td>{dateLabel(order.createdAt)}</td>
       <td>{money(order.totalPaise)}</td>
-      <td><span className={`admin-pill ${order.paymentStatus === "paid" && order.paymentMode !== "test" ? "green" : "muted"}`}>{order.paymentMode === "test" ? "test paid" : order.paymentStatus}</span></td>
+      <td><span className={`admin-pill ${order.paymentStatus === "paid" && order.paymentMode !== "test" ? "green" : "muted"}`}>{order.paymentMode === "test" ? (order.paymentStatus === "paid" ? "TEST PAID" : `TEST ${order.paymentStatus.toUpperCase()}`) : order.paymentStatus.toUpperCase()}</span></td>
       <td><span className="admin-pill muted">{order.status}</span></td>
       <td>{nextStatus ? <button className="admin-row-button" disabled={busy} onClick={() => void updateOrder(order, nextStatus)}>Mark {nextStatus}</button> : <span className="admin-dash">—</span>}</td>
     </tr>;
