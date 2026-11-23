@@ -188,7 +188,6 @@ export async function POST(request: Request) {
         shippingZoneName,
         deliveryMinDays,
         deliveryMaxDays,
-        discountPaise: 0,
         totalPaise,
         status: "pending_payment",
         statusHistory: [{
