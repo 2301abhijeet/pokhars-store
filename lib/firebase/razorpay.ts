@@ -15,18 +15,22 @@ export function checkoutConfig() {
   const keyId = process.env.RAZORPAY_KEY_ID ?? "";
   const keySecret = process.env.RAZORPAY_KEY_SECRET ?? "";
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET ?? "";
+  const allowProductionTestCheckout = process.env.VERCEL_ENV !== "production" ||
+    process.env.RAZORPAY_ALLOW_PRODUCTION_TEST_CHECKOUT === "true";
+  const shippingPaise = Number(process.env.CHECKOUT_TEST_SHIPPING_PAISE ?? "0");
+  const validShippingPaise = Number.isSafeInteger(shippingPaise) && shippingPaise >= 0;
   const enabled = process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE !== "true" &&
-    process.env.VERCEL_ENV !== "production" &&
+    allowProductionTestCheckout &&
     process.env.RAZORPAY_MODE === "test" &&
     keyId.startsWith("rzp_test_") &&
-    Boolean(keySecret);
-  const shippingPaise = Number(process.env.CHECKOUT_TEST_SHIPPING_PAISE ?? "0");
+    Boolean(keySecret) &&
+    validShippingPaise;
   return {
-    enabled: enabled && Number.isSafeInteger(shippingPaise) && shippingPaise >= 0,
+    enabled,
     keyId: enabled ? keyId : "",
     keySecret: enabled ? keySecret : "",
     webhookSecret,
-    shippingPaise: Number.isSafeInteger(shippingPaise) && shippingPaise >= 0 ? shippingPaise : 0,
+    shippingPaise: validShippingPaise ? shippingPaise : 0,
     mode: enabled ? "test" as const : null,
   };
 }

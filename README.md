@@ -113,21 +113,42 @@ Do not paste private keys into ChatGPT or GitHub. The application returns a clea
 
 ## Test checkout setup
 
-Checkout is deliberately **test-only**. The server rejects live Razorpay keys and disables checkout on Vercel Production, always tags test orders with `paymentMode: "test"`, and the dashboard excludes them from live sales and fulfilment. A test payment records an explicitly labeled test order but never changes storefront stock. Do not add live Razorpay credentials. Shipping and tax policy is undecided: test shipping defaults to ₹0 and tax is not included.
+Checkout is deliberately **test-only**. The server requires `RAZORPAY_MODE=test`, rejects any key ID that does not start with `rzp_test_`, verifies the payment signature on the server and confirms the payment amount/order with Razorpay before marking an order paid. Test orders are always tagged with `paymentMode: "test"`, excluded from live sales and fulfilment, and do not change storefront stock. Never add live Razorpay credentials to this project.
 
-To enable a test purchase after reviewing this change:
+### Before enabling checkout
 
-1. In the Razorpay Dashboard, switch to **Test Mode** and create a test API key. The key ID must begin with `rzp_test_`.
-2. For a safe test, create a separate Firebase staging project first, then add its Firebase Admin credentials and these Razorpay variables to the Vercel **Preview** environment only (or use a local `.env.local` connected to staging):
+The website currently has `NEXT_PUBLIC_CATALOGUE_DEMO_MODE=true`. Keep it on while sample product content or packaging is being used: this intentionally blocks every order/payment endpoint and shows the customer a demo-only catalogue. To accept even a **test** order, first replace the demo catalogue with actual retail products and verify each product's actual pack photo, ingredients, allergen information, nutrition, manufacturer name/address, pack image verification and FSSAI licence. The checkout API rejects products without those verified publishing fields.
+
+Also configure the real delivery PIN-code zones, confirmed courier fees and delivery estimates under **Admin → Shipping**. Shipping is disabled until those details have been saved and enabled. Add a saved customer delivery address under `/account/addresses`. Checkout validates the saved address PIN code against the configured shipping zones.
+
+### Enable test checkout on Preview (recommended first)
+
+1. In the Razorpay Dashboard, switch to **Test Mode** and create a test API key. The Key ID must begin with `rzp_test_`.
+2. Add these values to the Vercel **Preview** environment (use a separate Firebase staging project and its Admin credentials for Preview):
    - `RAZORPAY_MODE=test`
+   - `RAZORPAY_ALLOW_PRODUCTION_TEST_CHECKOUT=false`
    - `RAZORPAY_KEY_ID=<Razorpay test key ID>`
    - `RAZORPAY_KEY_SECRET=<matching Razorpay test key secret>`
    - `RAZORPAY_WEBHOOK_SECRET=<a webhook secret you choose in Razorpay>`
    - Optional `CHECKOUT_TEST_SHIPPING_PAISE=0` (for example, `5000` means ₹50.00)
-3. In Razorpay Test Mode, add a webhook pointing to the Preview deployment URL shown by Vercel, followed by `/api/payments/razorpay/webhook`. Use the same webhook secret and subscribe to `payment.captured` and `payment.failed`.
-4. Redeploy the Preview deployment after adding the variables. Sign in to that preview, add a saved delivery address under `/account/addresses`, and use Razorpay's test payment details.
+3. In Razorpay Test Mode, configure a webhook at the Preview deployment URL followed by `/api/payments/razorpay/webhook`. Use the same webhook secret and subscribe to `payment.captured` and `payment.failed`.
+4. Redeploy Preview, sign in, add a saved delivery address, and complete a test payment.
 
-Never put Razorpay keys in `NEXT_PUBLIC_*` variables or in chat. If the test variables are missing, checkout remains disabled and the site says that live payments are disabled. Vercel Production always keeps checkout disabled, even if someone adds test credentials there. Shipping, tax calculation, refunds, coupon redemption, payment settlement and live payment support remain out of scope. Orders are written through server-only Admin SDK routes; test checkouts do not change inventory, and Firestore client writes remain denied by the existing rules. No Firestore rules or indexes were changed or deployed for checkout.
+### Optional: test checkout on the production website
+
+Only after all real product and shipping information is verified, you can run a test checkout on `https://pokhars-store.vercel.app`. Set the following variables in the Vercel **Production** environment only:
+
+- `NEXT_PUBLIC_CATALOGUE_DEMO_MODE=false` — only after replacing and verifying every demo product.
+- `RAZORPAY_MODE=test`
+- `RAZORPAY_ALLOW_PRODUCTION_TEST_CHECKOUT=true`
+- `RAZORPAY_KEY_ID` — the `rzp_test_` Key ID from Razorpay Test Mode.
+- `RAZORPAY_KEY_SECRET` — the matching Test Mode secret.
+- `RAZORPAY_WEBHOOK_SECRET` — the webhook secret configured in Razorpay Test Mode.
+- Optional `CHECKOUT_TEST_SHIPPING_PAISE=0`.
+
+Keep the existing Production Firebase Admin credentials; test orders will be saved in the production Firestore database and will be visible as test orders in customer/admin order history. They are not live sales, cannot enter fulfilment, and do not decrement product stock. For this reason, test on Preview/staging first. Configure the Razorpay Test Mode webhook to `https://pokhars-store.vercel.app/api/payments/razorpay/webhook` if using the production website for the test. Redeploy after changing variables.
+
+Never put Razorpay secrets in `NEXT_PUBLIC_*` variables, GitHub or chat. Keep `RAZORPAY_ALLOW_PRODUCTION_TEST_CHECKOUT=false` unless an owner intentionally wants a test-only checkout on Production. Even when this switch is true, the server will still only accept `rzp_test_` keys and `RAZORPAY_MODE=test`; live keys cannot pass the guard. The Demo Catalogue gate and server-side verified-product/shipping checks remain mandatory. Taxes are not included unless a separate tax policy is implemented. Refunds, coupon redemption and live payment settlement remain out of scope. Orders are written only through server-side Admin SDK routes; Firestore client writes remain denied. No Firestore rules or indexes were changed for checkout.
 
 ### Rules and indexes review
 
