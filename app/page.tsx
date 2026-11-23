@@ -30,7 +30,6 @@ type RazorpayOptions = {
   config?: {
     display: {
       blocks: Record<string, { name: string; instruments: Array<{ method: string }> }>;
-      hide: Array<{ method: string; flows?: string[] }>;
       sequence: string[];
       preferences: { show_default_blocks: boolean };
     };
@@ -392,9 +391,6 @@ export default function HomePage() {
                 instruments: [{ method: "upi" }],
               },
             },
-            // UPI Collect (manual UPI ID entry) is deprecated for standard
-            // desktop web checkout; show QR on desktop and Intent on mobile web.
-            hide: [{ method: "upi", flows: ["collect"] }],
             sequence: ["block.upi"],
             preferences: { show_default_blocks: true },
           },
@@ -799,7 +795,7 @@ export default function HomePage() {
                   >
                     {checkoutBusy ? "PREPARING TEST CHECKOUT…" : !user ? "SIGN IN TO CHECK OUT" : checkoutConfig?.enabled ? "CONTINUE TO TEST PAYMENT" : "TEST CHECKOUT NOT CONFIGURED"}
                   </button>
-                  <p className="checkout-method-note">UPI QR ON DESKTOP · UPI APP INTENT ON MOBILE · CARDS · NETBANKING · WALLETS</p>
+                  <p className="checkout-method-note">UPI · CARDS · NETBANKING · WALLETS · PAYMENT OPTIONS SHOWN BY RAZORPAY</p>
                   <p className="checkout-live-note">{isDemoCatalogueMode ? "DEMO TEST ONLY · NO REAL MONEY · NO DELIVERY OR STOCK CHANGES" : "TEST MODE ONLY · NO REAL PAYMENT · LIVE PAYMENTS DISABLED"}</p>
                 </div>
               </>
