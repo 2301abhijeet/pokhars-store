@@ -4,6 +4,7 @@ import { adminDb, jsonError, verifySignedInUser } from "@/lib/firebase/admin";
 import { checkoutConfig, razorpayRequest, releaseExpiredReservations, releaseReservation } from "@/lib/firebase/razorpay";
 import { isPlaceholderProductValue, isValidFssaiNumber } from "@/lib/firebase/admin-validation";
 import { quoteShipping, validateShippingSettings } from "@/lib/firebase/shipping";
+import { evaluateCoupon } from "@/lib/firebase/coupons";
 
 export const runtime = "nodejs";
 
@@ -24,7 +25,9 @@ export async function POST(request: Request) {
   let body: unknown;
   try { body = await request.json(); } catch { return jsonError("Invalid checkout request.", 400); }
   if (!body || typeof body !== "object" || Array.isArray(body)) return jsonError("Invalid checkout request.", 400);
-  const payload = body as { addressId?: unknown; requestId?: unknown; items?: unknown };
+  const payload = body as { addressId?: unknown; requestId?: unknown; items?: unknown; couponCode?: unknown };
+  const couponCode = typeof payload.couponCode === "string" ? payload.couponCode.trim().toUpperCase() : "";
+  if (payload.couponCode !== undefined && couponCode && !/^[A-Z0-9_-]{3,32}$/.test(couponCode)) return jsonError("Enter a valid coupon code.", 400);
   if (!validRequestId(payload.requestId) || typeof payload.addressId !== "string" || !/^[A-Za-z0-9_-]{1,150}$/.test(payload.addressId)) {
     return jsonError("Choose a saved delivery address and retry checkout.", 400);
   }
@@ -57,6 +60,7 @@ export async function POST(request: Request) {
         currency: "INR",
         keyId: config.keyId,
         demoOrder: order.data()?.demoOrder === true,
+        discountPaise: Number(order.data()?.discountPaise) || 0,
       });
     }
   }
@@ -64,11 +68,14 @@ export async function POST(request: Request) {
 
   const addressRef = db.collection("users").doc(user.uid).collection("addresses").doc(payload.addressId);
   const shippingSettingsRef = db.collection("settings").doc("shipping");
+  const couponRef = couponCode ? db.collection("coupons").doc(couponCode) : null;
   const orderRef = db.collection("orders").doc();
   const orderNumber = `PK-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString("hex").toUpperCase()}`;
   const productRefs = items.map((item) => db.collection("products").doc(item.productId));
   let prepared: {
     subtotalPaise: number;
+    discountPaise: number;
+    couponCode: string | null;
     totalPaise: number;
     orderItems: Array<{ productId: string; nameSnapshot: string; unitPricePaise: number; quantity: number; lineTotalPaise: number }>;
     shippingAddress: Record<string, string>;
@@ -86,6 +93,7 @@ export async function POST(request: Request) {
       ]);
       const productSnapshots = await Promise.all(productRefs.map((ref) => transaction.get(ref)));
       const shippingSettingsSnapshot = demoCheckout ? null : await transaction.get(shippingSettingsRef);
+      const couponSnapshot = couponRef ? await transaction.get(couponRef) : null;
       if (requestSnapshot.exists) throw new Error("CHECKOUT_REQUEST_EXISTS");
       if (!addressSnapshot.exists) throw new Error("ADDRESS_NOT_FOUND");
       const shippingValidation = demoCheckout || !shippingSettingsSnapshot
@@ -134,6 +142,13 @@ export async function POST(request: Request) {
         quantity: item.quantity,
         lineTotalPaise: item.lineTotalPaise,
       }));
+      let discountPaise = 0;
+      if (couponCode) {
+        if (!couponSnapshot?.exists) throw new Error("COUPON_INVALID");
+        const couponResult = evaluateCoupon(couponSnapshot.data() ?? {}, subtotal);
+        if (!couponResult.valid) throw new Error("COUPON_INVALID");
+        discountPaise = couponResult.discountPaise;
+      }
       let shippingPaise = 0;
       let shippingZoneName = "DEMO TEST ONLY — NO DELIVERY";
       let deliveryMinDays: number | null = null;
@@ -149,15 +164,21 @@ export async function POST(request: Request) {
         deliveryMinDays = shippingQuote.deliveryMinDays;
         deliveryMaxDays = shippingQuote.deliveryMaxDays;
       }
-      const totalPaise = subtotal + shippingPaise;
+      const totalPaise = subtotal - discountPaise + shippingPaise;
       if (!Number.isSafeInteger(totalPaise) || totalPaise > 100_000_000) throw new Error("TOTAL_INVALID");
       const expiresAt = Timestamp.fromMillis(Date.now() + 30 * 60 * 1000);
 
+      if (couponRef && couponCode) transaction.update(couponRef, { reservedCount: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() });
       transaction.create(orderRef, {
         userId: user.uid,
+        customerEmail: typeof user.email === "string" ? user.email : "",
         orderNumber,
         items: orderItems,
         subtotalPaise: subtotal,
+        discountPaise,
+        couponCode: couponCode || null,
+        couponUseReserved: Boolean(couponCode),
+        couponRedeemed: false,
         shippingPaise,
         shippingZoneName,
         deliveryMinDays,
@@ -192,7 +213,7 @@ export async function POST(request: Request) {
         createdAt: FieldValue.serverTimestamp(),
       });
       return {
-        subtotalPaise: subtotal, totalPaise, orderItems, shippingAddress,
+        subtotalPaise: subtotal, discountPaise, couponCode: couponCode || null, totalPaise, orderItems, shippingAddress,
         shippingPaise, shippingZoneName,
         deliveryMinDays, deliveryMaxDays,
       };
@@ -201,6 +222,7 @@ export async function POST(request: Request) {
     const code = cause instanceof Error ? cause.message : "";
     const messages: Record<string, [string, number]> = {
       CHECKOUT_REQUEST_EXISTS: ["This checkout attempt is already being processed. Refresh your bag and try again.", 409],
+      COUPON_INVALID: ["This coupon is no longer valid for your bag. Remove it or try another code.", 409],
       ADDRESS_NOT_FOUND: ["That delivery address was not found. Refresh your saved addresses and try again.", 404],
       ADDRESS_INVALID: ["That delivery address is incomplete. Update it before checkout.", 400],
       SHIPPING_NOT_CONFIGURED: ["Delivery zones are not configured yet. Please try again later.", 503],
@@ -246,6 +268,8 @@ export async function POST(request: Request) {
     currency: "INR",
     keyId: config.keyId,
     shippingPaise: prepared.shippingPaise,
+    discountPaise: prepared.discountPaise,
+    couponCode: prepared.couponCode,
     shippingZoneName: prepared.shippingZoneName,
     deliveryMinDays: prepared.deliveryMinDays,
     deliveryMaxDays: prepared.deliveryMaxDays,
