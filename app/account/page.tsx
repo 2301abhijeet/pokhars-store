@@ -18,6 +18,10 @@ type AccountOrder = {
   shippingPaise: number;
   totalPaise: number;
   createdAt: string | null;
+  carrier: string | null;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  statusHistory: Array<{ status: string; event?: string; note: string; occurredAt: string | null }>;
   items: Array<{ productId: string; name: string; quantity: number; unitPricePaise: number; lineTotalPaise: number }>;
 };
 
@@ -53,6 +57,7 @@ export default function AccountPage() {
   const [orders, setOrders] = useState<AccountOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -84,7 +89,7 @@ export default function AccountPage() {
     })();
 
     return () => { active = false; };
-  }, [user, authLoading]);
+  }, [user, authLoading, refreshKey]);
 
   return (
     <main className="site-shell customer-account-page">
@@ -138,7 +143,7 @@ export default function AccountPage() {
 
             <div className="customer-orders-heading">
               <div><p className="section-kicker">YOUR SNACK JOURNEY</p><h2>Order history</h2></div>
-              <span>{orders.length} ORDER{orders.length === 1 ? "" : "S"}</span>
+              <div className="customer-orders-actions"><span>{orders.length} ORDER{orders.length === 1 ? "" : "S"}</span><button type="button" className="customer-orders-refresh" disabled={ordersLoading} onClick={() => setRefreshKey((current) => current + 1)}>{ordersLoading ? "REFRESHING…" : "REFRESH STATUS ↻"}</button></div>
             </div>
 
             {error && <p className="customer-account-error" role="alert">{error}</p>}
@@ -159,6 +164,38 @@ export default function AccountPage() {
                       <div><p className="customer-order-kicker">ORDER NUMBER</p><h3>{order.orderNumber}</h3><span>{dateLabel(order.createdAt)}</span></div>
                       <div className="customer-order-status"><span className={"customer-order-status-dot status-" + order.status} />{statusLabel(order.status)}</div>
                     </div>
+                    <section className="customer-tracking">
+                      <div className="customer-tracking-head"><span>DELIVERY PROGRESS</span><strong>{statusLabel(order.status)}</strong></div>
+                      {order.status === "cancelled" || order.status === "refunded" || order.status === "expired" ? (
+                        <p className="customer-tracking-note">This order is {statusLabel(order.status).toLowerCase()}.</p>
+                      ) : (
+                        <ol className="customer-tracking-steps">
+                          {(["confirmed", "processing", "shipped", "delivered"] as const).map((step, index) => {
+                            const steps = ["confirmed", "processing", "shipped", "delivered"];
+                            const currentIndex = steps.indexOf(order.status);
+                            const done = currentIndex >= index;
+                            return <li className={done ? "is-complete" : ""} key={step}><span className="customer-tracking-step-dot">{done ? "✓" : index + 1}</span><span>{statusLabel(step)}</span></li>;
+                          })}
+                        </ol>
+                      )}
+                      {(order.carrier || order.trackingNumber) && (
+                        <div className="customer-tracking-carrier">
+                          <div><span>COURIER</span><strong>{order.carrier || "Courier partner"}</strong></div>
+                          <div><span>TRACKING NUMBER</span><strong>{order.trackingNumber || "Pending"}</strong></div>
+                          {order.trackingUrl && <a href={order.trackingUrl} target="_blank" rel="noreferrer">TRACK SHIPMENT ↗</a>}
+                        </div>
+                      )}
+                      {order.statusHistory.length > 0 && (
+                        <div className="customer-tracking-history">
+                          {order.statusHistory.slice().reverse().map((event, index) => (
+                            <div key={event.status + "-" + event.occurredAt + "-" + index}>
+                              <span className="customer-history-dot" />
+                              <div><strong>{event.event === "tracking_updated" ? "Tracking details updated" : statusLabel(event.status)}</strong>{event.note && <p>{event.note}</p>}<small>{dateLabel(event.occurredAt)}</small></div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
                     <div className="customer-order-items">
                       {order.items.map((item, index) => (
                         <div className="customer-order-item" key={item.productId + "-" + index}>
