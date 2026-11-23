@@ -386,12 +386,15 @@ export default function HomePage() {
         config: {
           display: {
             blocks: {
-              upi: {
-                name: "Pay using UPI",
-                instruments: [{ method: "upi" }],
+              upiTest: {
+                name: "UPI Test Payment",
+                // Razorpay Test Mode simulates UPI using test VPAs such as
+                // success@razorpay and failure@razorpay. QR/Intent are Live
+                // Mode flows and must be enabled separately by Razorpay.
+                instruments: [{ method: "upi", flows: ["collect"] }],
               },
             },
-            sequence: ["block.upi"],
+            sequence: ["block.upiTest"],
             preferences: { show_default_blocks: true },
           },
         },
