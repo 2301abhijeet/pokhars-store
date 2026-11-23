@@ -10,9 +10,7 @@ export async function settleRefundRequest(
 ) {
   const db = adminDb();
   const requestRef = db.collection("refundRequests").doc(refundRequestId);
-  let email: { to: string; orderNumber: string; amountPaise: number; outcome: "processed" | "failed"; orderId: string } | null = null;
-
-  await db.runTransaction(async (transaction) => {
+  const email = await db.runTransaction(async (transaction) => {
     const requestSnapshot = await transaction.get(requestRef);
     if (!requestSnapshot.exists) return;
     const request = requestSnapshot.data()!;
@@ -61,12 +59,13 @@ export async function settleRefundRequest(
     }
 
     if (typeof order.customerEmail === "string" && order.customerEmail) {
-      email = {
+      return {
         to: order.customerEmail,
         orderNumber: String(order.orderNumber ?? request.orderId),
         amountPaise, outcome, orderId: request.orderId,
       };
     }
+    return null;
   });
 
   if (email) {
