@@ -18,6 +18,7 @@ type AdminProduct = {
 type AdminOrder = {
   id: string; orderNumber?: string; userId: string; items?: Array<{ nameSnapshot: string; quantity: number; lineTotalPaise: number }>;
   totalPaise: number; status: string; paymentStatus: string; paymentMode?: string; inventoryIssue?: string; createdAt?: unknown;
+  carrier?: string; trackingNumber?: string; trackingUrl?: string;
 };
 type Coupon = { id: string; code: string; discountType: "percent" | "fixed"; discountValue: number; isActive: boolean };
 const isDemoCatalogueMode = process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "true";
@@ -223,9 +224,13 @@ export default function AdminPage() {
     finally { setBusy(false); }
   }
 
-  async function updateOrder(order: AdminOrder, status: string) {
+  async function updateOrder(order: AdminOrder, status: string, shipment?: { carrier: string; trackingNumber: string; trackingUrl: string }) {
     setBusy(true); setError(null);
-    try { await api(`/api/admin/orders/${order.id}`, { method: "PATCH", body: JSON.stringify({ status }) }); setNotice(`Order ${order.orderNumber ?? order.id} updated.`); await loadData(); }
+    try {
+      await api(`/api/admin/orders/${order.id}`, { method: "PATCH", body: JSON.stringify({ status, ...(shipment ?? {}) }) });
+      setNotice(status === "shipped" ? `Courier tracking saved for order ${order.orderNumber ?? order.id}.` : `Order ${order.orderNumber ?? order.id} updated.`);
+      await loadData();
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Order status could not be updated."); }
     finally { setBusy(false); }
   }
@@ -358,9 +363,64 @@ export default function AdminPage() {
 
 function EmptyState({ children }: { children: React.ReactNode }) { return <div className="admin-empty">{children}</div>; }
 
-function OrderTable({ orders, busy, updateOrder }: { orders: AdminOrder[]; busy: boolean; updateOrder: (order: AdminOrder, status: string) => Promise<void> }) {
+function OrderTable({ orders, busy, updateOrder }: { orders: AdminOrder[]; busy: boolean; updateOrder: (order: AdminOrder, status: string, shipment?: { carrier: string; trackingNumber: string; trackingUrl: string }) => Promise<void> }) {
+  const [shipmentDrafts, setShipmentDrafts] = useState<Record<string, { carrier: string; trackingNumber: string; trackingUrl: string }>>({});
+  const defaultShipment = (order: AdminOrder) => ({
+    carrier: order.carrier ?? "",
+    trackingNumber: order.trackingNumber ?? "",
+    trackingUrl: order.trackingUrl ?? "",
+  });
+  const shipmentFor = (order: AdminOrder) => shipmentDrafts[order.id] ?? defaultShipment(order);
+  const setShipmentField = (order: AdminOrder, field: "carrier" | "trackingNumber" | "trackingUrl", value: string) => {
+    setShipmentDrafts((current) => ({
+      ...current,
+      [order.id]: { ...(current[order.id] ?? defaultShipment(order)), [field]: value },
+    }));
+  };
+
   return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Order</th><th>Date</th><th>Total</th><th>Payment</th><th>Status</th><th>Update</th></tr></thead><tbody>{orders.map((order) => {
-    const nextStatus = order.paymentMode !== "test" && !order.inventoryIssue && order.paymentStatus === "paid" ? order.status === "confirmed" ? "processing" : order.status === "processing" ? "shipped" : order.status === "shipped" ? "delivered" : "" : "";
-    return <tr key={order.id}><td><strong>{order.orderNumber || order.id.slice(0, 10)}</strong>{order.paymentMode === "test" && <span className="admin-pill muted">TEST</span>}{order.inventoryIssue && <span className="admin-pill muted">INVENTORY REVIEW</span>}<details className="admin-order-detail"><summary>{order.items?.length ?? 0} line items · Details</summary><div>{order.items?.length ? order.items.map((item, index) => <p key={`${item.nameSnapshot}-${index}`}>{item.nameSnapshot} × {item.quantity} <b>{money(item.lineTotalPaise)}</b></p>) : <p>No item snapshot recorded.</p>}{order.inventoryIssue && <small>{order.inventoryIssue}</small>}<small>Customer UID: {order.userId}</small></div></details></td><td>{dateLabel(order.createdAt)}</td><td>{money(order.totalPaise)}</td><td><span className={`admin-pill ${order.paymentStatus === "paid" && order.paymentMode !== "test" ? "green" : "muted"}`}>{order.paymentMode === "test" ? "test paid" : order.paymentStatus}</span></td><td><span className="admin-pill muted">{order.status}</span></td><td>{nextStatus ? <button className="admin-row-button" disabled={busy} onClick={() => void updateOrder(order, nextStatus)}>Mark {nextStatus}</button> : <span className="admin-dash">—</span>}</td></tr>;
-  })}</tbody></table>{orders.length === 0 && <EmptyState>No order records exist yet. Orders and sales will appear when a secure order backend is added.</EmptyState>}</div>;
+    const canFulfil = order.paymentMode !== "test" && !order.inventoryIssue && order.paymentStatus === "paid";
+    const nextStatus = canFulfil ? order.status === "confirmed" ? "processing" : order.status === "shipped" ? "delivered" : "" : "";
+    const canManageShipment = canFulfil && (order.status === "processing" || order.status === "shipped");
+    const shipment = shipmentFor(order);
+    return <tr key={order.id}>
+      <td>
+        <strong>{order.orderNumber || order.id.slice(0, 10)}</strong>
+        {order.paymentMode === "test" && <span className="admin-pill muted">TEST</span>}
+        {order.inventoryIssue && <span className="admin-pill muted">INVENTORY REVIEW</span>}
+        <details className="admin-order-detail">
+          <summary>{order.items?.length ?? 0} line items · Details</summary>
+          <div>
+            {order.items?.length ? order.items.map((item, index) => <p key={`${item.nameSnapshot}-${index}`}>{item.nameSnapshot} × {item.quantity} <b>{money(item.lineTotalPaise)}</b></p>) : <p>No item snapshot recorded.</p>}
+            {order.inventoryIssue && <small>{order.inventoryIssue}</small>}
+            <small>Customer UID: {order.userId}</small>
+            {order.carrier && <small>Courier: {order.carrier}</small>}
+            {order.trackingNumber && <small>Tracking number: {order.trackingNumber}</small>}
+            {canManageShipment && (
+              <div className="admin-shipment-editor">
+                <p className="admin-shipment-heading">{order.status === "shipped" ? "COURIER TRACKING" : "SHIPMENT DETAILS"}</p>
+                <label>COURIER / DELIVERY PARTNER
+                  <input value={shipment.carrier} maxLength={80} placeholder="e.g. Delhivery, Blue Dart" onChange={(event) => setShipmentField(order, "carrier", event.target.value)} />
+                </label>
+                <label>TRACKING / AWB NUMBER
+                  <input value={shipment.trackingNumber} maxLength={120} placeholder="Enter courier tracking number" onChange={(event) => setShipmentField(order, "trackingNumber", event.target.value)} />
+                </label>
+                <label>TRACKING LINK (OPTIONAL)
+                  <input type="url" value={shipment.trackingUrl} maxLength={500} placeholder="https://courier.example/track/…" onChange={(event) => setShipmentField(order, "trackingUrl", event.target.value)} />
+                </label>
+                <button className="admin-row-button" disabled={busy || !shipment.carrier.trim() || !shipment.trackingNumber.trim()} onClick={() => void updateOrder(order, "shipped", shipment)}>
+                  {order.status === "shipped" ? "SAVE TRACKING DETAILS" : "SAVE DETAILS & MARK SHIPPED"}
+                </button>
+              </div>
+            )}
+          </div>
+        </details>
+      </td>
+      <td>{dateLabel(order.createdAt)}</td>
+      <td>{money(order.totalPaise)}</td>
+      <td><span className={`admin-pill ${order.paymentStatus === "paid" && order.paymentMode !== "test" ? "green" : "muted"}`}>{order.paymentMode === "test" ? "test paid" : order.paymentStatus}</span></td>
+      <td><span className="admin-pill muted">{order.status}</span></td>
+      <td>{nextStatus ? <button className="admin-row-button" disabled={busy} onClick={() => void updateOrder(order, nextStatus)}>Mark {nextStatus}</button> : <span className="admin-dash">—</span>}</td>
+    </tr>;
+  })}</tbody></table>{orders.length === 0 && <EmptyState>No order records exist yet. Orders and sales will appear after launch when customer orders are enabled.</EmptyState>}</div>;
 }
