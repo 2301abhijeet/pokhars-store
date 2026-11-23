@@ -17,7 +17,8 @@ type AdminProduct = {
 };
 type AdminOrder = {
   id: string; orderNumber?: string; userId: string; items?: Array<{ nameSnapshot: string; quantity: number; lineTotalPaise: number }>;
-  totalPaise: number; status: string; paymentStatus: string; paymentMode?: string; inventoryIssue?: string; createdAt?: unknown;
+  totalPaise: number; status: string; paymentStatus: string; paymentMode?: string; paymentId?: string; refundedPaise?: number; refundsInFlightPaise?: number; inventoryIssue?: string; createdAt?: unknown;
+  refunds?: Array<{ refundId: string; amountPaise: number; status: string; reason?: string }>;
   carrier?: string; trackingNumber?: string; trackingUrl?: string;
 };
 type Coupon = { id: string; code: string; discountType: "percent" | "fixed"; discountValue: number; isActive: boolean; minOrderPaise?: number; maxDiscountPaise?: number | null; usageLimit?: number | null; usedCount?: number; reservedCount?: number; startsAt?: string | null; expiresAt?: string | null };
@@ -272,6 +273,30 @@ export default function AdminPage() {
     finally { setBusy(false); }
   }
 
+  async function refundOrder(order: AdminOrder, amountPaise?: number) {
+    const available = Math.max(0, order.totalPaise - (order.refundedPaise ?? 0) - (order.refundsInFlightPaise ?? 0));
+    const amount = amountPaise ?? available;
+    if (amount < 100 || amount > available) {
+      setError("Enter a refund amount from ₹1 up to the remaining refundable balance.");
+      return;
+    }
+    const display = money(amount);
+    if (!window.confirm("Initiate a " + display + " refund for order " + (order.orderNumber ?? order.id) + "? This request is sent to Razorpay and cannot be undone.")) return;
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const result = await api(`/api/admin/orders/${order.id}/refund`, {
+        method: "POST",
+        body: JSON.stringify({ amountPaise: amount, reason: "Admin initiated refund", idempotencyKey: crypto.randomUUID() }),
+      });
+      setNotice("Refund request recorded with Razorpay: " + display + ". Status: " + String(result.status ?? "pending") + ".");
+      await loadData();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Refund could not be initiated.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function updateOrder(order: AdminOrder, status: string, shipment?: { carrier: string; trackingNumber: string; trackingUrl: string }) {
     setBusy(true); setError(null);
     try {
@@ -390,7 +415,7 @@ export default function AdminPage() {
             <article><span>PUBLISHED PRODUCTS</span><strong>{activeProducts}</strong><small>Active and visible in the storefront</small></article>
             <article className={lowStock.length ? "attention" : ""}><span>LOW STOCK · 5 OR FEWER</span><strong>{lowStock.length}</strong><small>{lowStock.length ? "Review inventory" : "All products above alert level"}</small></article>
           </div>
-          <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">LATEST ACTIVITY</p><h2>Recent orders</h2></div><button className="admin-link-button" onClick={() => setTab("orders")}>View all →</button></div><OrderTable orders={operationalOrders.slice(0, 5)} busy={busy} updateOrder={updateOrder} /></section>
+          <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">LATEST ACTIVITY</p><h2>Recent orders</h2></div><button className="admin-link-button" onClick={() => setTab("orders")}>View all →</button></div><OrderTable orders={operationalOrders.slice(0, 5)} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} /></section>
           <p className="admin-footnote">Revenue uses stored totals from non-test orders marked paid. Test orders are labeled and excluded. Refunds, fees and settlement reconciliation are not included.</p>
         </>}
         {tab === "products" && <div className="admin-products-layout">
@@ -472,7 +497,7 @@ export default function AdminPage() {
               <div><p className="admin-eyebrow">CUSTOMER ORDERS</p><h2>Orders</h2></div>
               <span className="admin-pill muted">{operationalOrders.length} orders</span>
             </div>
-            <OrderTable orders={operationalOrders} busy={busy} updateOrder={updateOrder} />
+            <OrderTable orders={operationalOrders} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} />
           </section>
           {unpaidTestAttempts.length > 0 && (
             <details className="admin-test-attempts">
@@ -563,8 +588,9 @@ export default function AdminPage() {
 
 function EmptyState({ children }: { children: React.ReactNode }) { return <div className="admin-empty">{children}</div>; }
 
-function OrderTable({ orders, busy, updateOrder }: { orders: AdminOrder[]; busy: boolean; updateOrder: (order: AdminOrder, status: string, shipment?: { carrier: string; trackingNumber: string; trackingUrl: string }) => Promise<void> }) {
+function OrderTable({ orders, busy, updateOrder, refundOrder }: { orders: AdminOrder[]; busy: boolean; updateOrder: (order: AdminOrder, status: string, shipment?: { carrier: string; trackingNumber: string; trackingUrl: string }) => Promise<void>; refundOrder: (order: AdminOrder, amountPaise?: number) => Promise<void> }) {
   const [shipmentDrafts, setShipmentDrafts] = useState<Record<string, { carrier: string; trackingNumber: string; trackingUrl: string }>>({});
+  const [refundDrafts, setRefundDrafts] = useState<Record<string, string>>({});
   const defaultShipment = (order: AdminOrder) => ({
     carrier: order.carrier ?? "",
     trackingNumber: order.trackingNumber ?? "",
@@ -593,7 +619,22 @@ function OrderTable({ orders, busy, updateOrder }: { orders: AdminOrder[]; busy:
           <div>
             {order.items?.length ? order.items.map((item, index) => <p key={`${item.nameSnapshot}-${index}`}>{item.nameSnapshot} × {item.quantity} <b>{money(item.lineTotalPaise)}</b></p>) : <p>No item snapshot recorded.</p>}
             {order.inventoryIssue && <small>{order.inventoryIssue}</small>}
+            {order.refundedPaise ? <small>Refunded so far: {money(order.refundedPaise)} · In progress: {money(order.refundsInFlightPaise ?? 0)}</small> : null}
+            {Array.isArray(order.refunds) && order.refunds.length > 0 && <div className="admin-refund-history">{order.refunds.map((refund) => <small key={refund.refundId}>Refund {refund.refundId}: {money(refund.amountPaise)} · {refund.status}</small>)}</div>}
             <small>Customer UID: {order.userId}</small>
+            {order.paymentId && ["paid", "partially_refunded"].includes(order.paymentStatus) && (
+              <div className="admin-shipment-editor admin-refund-editor">
+                <p className="admin-shipment-heading">REFUND PAYMENT</p>
+                <small>Remaining refundable: {money(Math.max(0, order.totalPaise - (order.refundedPaise ?? 0) - (order.refundsInFlightPaise ?? 0)))}</small>
+                <label>REFUND AMOUNT IN RUPEES (LEAVE BLANK FOR FULL REMAINING)
+                  <input type="number" min="1" step="0.01" value={refundDrafts[order.id] ?? ""} placeholder={money(Math.max(0, order.totalPaise - (order.refundedPaise ?? 0) - (order.refundsInFlightPaise ?? 0)))} onChange={(event) => setRefundDrafts((current) => ({ ...current, [order.id]: event.target.value }))} />
+                </label>
+                <button className="admin-row-button" disabled={busy || Number(refundDrafts[order.id] ?? 0) < 0} onClick={() => void refundOrder(order, refundDrafts[order.id]?.trim() ? Math.round(Number(refundDrafts[order.id]) * 100) : undefined)}>
+                  INITIATE REFUND
+                </button>
+                <small>Test payments create simulated refunds. Live refunds require live API credentials and a separately enabled server flag.</small>
+              </div>
+            )}
             {order.carrier && <small>Courier: {order.carrier}</small>}
             {order.trackingNumber && <small>Tracking number: {order.trackingNumber}</small>}
             {canManageShipment && (
