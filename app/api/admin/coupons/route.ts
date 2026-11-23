@@ -11,6 +11,13 @@ function validateCoupon(body: unknown): string | null {
   if (typeof body.discountValue !== "number" || !Number.isFinite(body.discountValue) || body.discountValue <= 0) return "Discount must be greater than zero.";
   if ((body.discountType === "percent" && body.discountValue > 100) || (body.discountType === "fixed" && !Number.isInteger(body.discountValue))) return "Enter a valid discount amount.";
   if (typeof body.isActive !== "boolean") return "Choose whether the coupon is active.";
+  if (body.minOrderPaise !== undefined && (!Number.isSafeInteger(body.minOrderPaise) || Number(body.minOrderPaise) < 0)) return "Minimum order value must be a non-negative paise amount.";
+  if (body.maxDiscountPaise !== undefined && body.maxDiscountPaise !== null && (!Number.isSafeInteger(body.maxDiscountPaise) || Number(body.maxDiscountPaise) < 1)) return "Maximum discount must be a positive paise amount.";
+  if (body.usageLimit !== undefined && body.usageLimit !== null && (!Number.isSafeInteger(body.usageLimit) || Number(body.usageLimit) < 1)) return "Usage limit must be a positive whole number.";
+  for (const field of ["startsAt", "expiresAt"] as const) {
+    if (body[field] !== undefined && body[field] !== null && body[field] !== "" &&
+        (typeof body[field] !== "string" || !Number.isFinite(Date.parse(body[field] as string)))) return "Enter valid coupon start and expiry dates.";
+  }
   return null;
 }
 
@@ -38,6 +45,13 @@ export async function POST(request: Request) {
     discountType: body.discountType,
     discountValue: body.discountValue,
     isActive: body.isActive,
+    minOrderPaise: Number(body.minOrderPaise ?? 0),
+    maxDiscountPaise: body.maxDiscountPaise == null ? null : Number(body.maxDiscountPaise),
+    usageLimit: body.usageLimit == null ? null : Number(body.usageLimit),
+    usedCount: 0,
+    reservedCount: 0,
+    startsAt: typeof body.startsAt === "string" && body.startsAt ? body.startsAt : null,
+    expiresAt: typeof body.expiresAt === "string" && body.expiresAt ? body.expiresAt : null,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });

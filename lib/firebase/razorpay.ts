@@ -87,6 +87,9 @@ export async function releaseReservation(
     if (order.paymentStatus === "paid") return;
 
     const items = Array.isArray(order.items) ? order.items as Array<{ productId: string; quantity: number }> : [];
+    const couponRef = typeof order.couponCode === "string" && order.couponUseReserved === true
+      ? db.collection("coupons").doc(order.couponCode) : null;
+    const couponSnapshot = couponRef ? await transaction.get(couponRef) : null;
     if (order.stockReserved === true) {
       const products = await Promise.all(items.map((item) => transaction.get(db.collection("products").doc(item.productId))));
       products.forEach((productSnapshot, index) => {
@@ -99,10 +102,15 @@ export async function releaseReservation(
         });
       });
     }
+    if (couponRef && couponSnapshot?.exists) {
+      const reservedCount = Math.max(0, Number(couponSnapshot.data()?.reservedCount ?? 0) - 1);
+      transaction.update(couponRef, { reservedCount, updatedAt: FieldValue.serverTimestamp() });
+    }
     transaction.update(orderRef, {
       status: outcome.status,
       paymentStatus: "failed",
       stockReserved: false,
+      couponUseReserved: false,
       failureReason: outcome.reason,
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -110,11 +118,23 @@ export async function releaseReservation(
 }
 
 export async function markOrderPaid(orderRef: DocumentReference<DocumentData>, paymentId: string) {
-  await adminDb().runTransaction(async (transaction) => {
+  const db = adminDb();
+  await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(orderRef);
     if (!snapshot.exists) return;
     const order = snapshot.data()!;
     if (order.paymentStatus === "paid" || order.paymentMode !== "test") return;
+    const couponRef = typeof order.couponCode === "string" && order.couponUseReserved === true
+      ? db.collection("coupons").doc(order.couponCode) : null;
+    const couponSnapshot = couponRef ? await transaction.get(couponRef) : null;
+    if (couponRef && couponSnapshot?.exists) {
+      const reservedCount = Math.max(0, Number(couponSnapshot.data()?.reservedCount ?? 0) - 1);
+      transaction.update(couponRef, {
+        reservedCount,
+        usedCount: FieldValue.increment(1),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
     transaction.update(orderRef, {
       status: "confirmed",
       statusHistory: FieldValue.arrayUnion({
@@ -127,6 +147,8 @@ export async function markOrderPaid(orderRef: DocumentReference<DocumentData>, p
       paymentStatus: "paid",
       paymentMode: "test",
       paymentId,
+      couponUseReserved: false,
+      couponRedeemed: typeof order.couponCode === "string" ? true : false,
       stockReserved: false,
       inventoryIssue: FieldValue.delete(),
       paidAt: FieldValue.serverTimestamp(),

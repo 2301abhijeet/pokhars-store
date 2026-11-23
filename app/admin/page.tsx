@@ -20,7 +20,7 @@ type AdminOrder = {
   totalPaise: number; status: string; paymentStatus: string; paymentMode?: string; inventoryIssue?: string; createdAt?: unknown;
   carrier?: string; trackingNumber?: string; trackingUrl?: string;
 };
-type Coupon = { id: string; code: string; discountType: "percent" | "fixed"; discountValue: number; isActive: boolean };
+type Coupon = { id: string; code: string; discountType: "percent" | "fixed"; discountValue: number; isActive: boolean; minOrderPaise?: number; maxDiscountPaise?: number | null; usageLimit?: number | null; usedCount?: number; reservedCount?: number; startsAt?: string | null; expiresAt?: string | null };
 type ShippingZoneForm = {
   id: string;
   name: string;
@@ -101,6 +101,11 @@ export default function AdminPage() {
   const [couponCode, setCouponCode] = useState("");
   const [couponType, setCouponType] = useState<"percent" | "fixed">("percent");
   const [couponValue, setCouponValue] = useState(10);
+  const [couponActive, setCouponActive] = useState(false);
+  const [couponMinOrderRupees, setCouponMinOrderRupees] = useState(0);
+  const [couponMaxDiscountRupees, setCouponMaxDiscountRupees] = useState("");
+  const [couponUsageLimit, setCouponUsageLimit] = useState("");
+  const [couponExpiresAt, setCouponExpiresAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
@@ -336,16 +341,25 @@ export default function AdminPage() {
   async function createCoupon(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(null); setNotice(null);
     try {
-      await api("/api/admin/coupons", { method: "POST", body: JSON.stringify({ code: couponCode.toUpperCase(), discountType: couponType, discountValue: couponValue, isActive: false }) });
-      setCouponCode(""); setNotice("Coupon created inactive. Activate it when your checkout supports coupons."); await loadData();
+      await api("/api/admin/coupons", { method: "POST", body: JSON.stringify({
+        code: couponCode.toUpperCase(), discountType: couponType, discountValue: couponValue,
+        isActive: couponActive, minOrderPaise: Math.round(couponMinOrderRupees * 100),
+        maxDiscountPaise: couponMaxDiscountRupees ? Math.round(Number(couponMaxDiscountRupees) * 100) : null,
+        usageLimit: couponUsageLimit ? Number(couponUsageLimit) : null,
+        expiresAt: couponExpiresAt ? new Date(couponExpiresAt).toISOString() : null,
+      }) });
+      setCouponCode(""); setCouponActive(false); setCouponMinOrderRupees(0); setCouponMaxDiscountRupees(""); setCouponUsageLimit(""); setCouponExpiresAt("");
+      setNotice(couponActive ? "Active coupon created and ready for checkout." : "Inactive coupon created."); await loadData();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Coupon could not be saved."); }
     finally { setBusy(false); }
   }
 
-  async function deactivateCoupon(coupon: Coupon) {
+  async function toggleCoupon(coupon: Coupon) {
     setBusy(true); setError(null);
-    try { await api(`/api/admin/coupons/${coupon.id}`, { method: "PATCH", body: JSON.stringify({ ...coupon, isActive: false }) }); setNotice("Coupon deactivated."); await loadData(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Coupon could not be updated."); }
+    try {
+      await api(`/api/admin/coupons/${coupon.id}`, { method: "PATCH", body: JSON.stringify({ ...coupon, isActive: !coupon.isActive }) });
+      setNotice(coupon.isActive ? "Coupon deactivated." : "Coupon activated for checkout."); await loadData();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Coupon could not be updated."); }
     finally { setBusy(false); }
   }
 
@@ -541,7 +555,7 @@ export default function AdminPage() {
             </section>
           </div>
         )}
-        {tab === "coupons" && <div className="admin-products-layout"><section className="admin-panel admin-form-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">PROMOTIONS</p><h2>Create coupon</h2></div></div><div className="admin-alert warning">Coupons are stored for admin management. Checkout does not validate or apply them yet, so new codes start inactive and cannot be activated here.</div><form className="admin-form" onSubmit={createCoupon}><label>Coupon code<input required minLength={3} maxLength={32} value={couponCode} onChange={(e) => setCouponCode(e.target.value.replace(/[^a-z0-9_-]/gi, "").toUpperCase())} /></label><label>Discount type<select value={couponType} onChange={(e) => setCouponType(e.target.value as "percent" | "fixed")}><option value="percent">Percentage</option><option value="fixed">Fixed amount (paise)</option></select></label><label>Discount value<input required type="number" min="1" max={couponType === "percent" ? 100 : undefined} step="1" value={couponValue} onChange={(e) => setCouponValue(Number(e.target.value))} /><small>Fixed amounts are entered in paise until checkout rules are defined.</small></label><button className="admin-primary" disabled={busy}>Create inactive coupon</button></form></section><section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">{coupons.length} TOTAL</p><h2>Coupons</h2></div></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Code</th><th>Discount</th><th>Status</th><th /></tr></thead><tbody>{coupons.map((coupon) => <tr key={coupon.id}><td><strong>{coupon.code}</strong></td><td>{coupon.discountType === "percent" ? `${coupon.discountValue}%` : money(coupon.discountValue)}</td><td><span className={`admin-pill ${coupon.isActive ? "green" : "muted"}`}>{coupon.isActive ? "active" : "inactive"}</span></td><td>{coupon.isActive ? <button className="admin-row-button" onClick={() => void deactivateCoupon(coupon)} disabled={busy}>Deactivate</button> : <span className="admin-dash">Activation pending checkout</span>}</td></tr>)}</tbody></table>{coupons.length === 0 && <EmptyState>No coupon documents were found.</EmptyState>}</div></section></div>}
+        {tab === "coupons" && <div className="admin-products-layout"><section className="admin-panel admin-form-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">PROMOTIONS</p><h2>Create coupon</h2></div></div><div className="admin-alert warning">Coupons are validated again by the server when an order is created. Percentage discounts use a percentage; fixed discounts are entered in paise. Reserved uses are released when unpaid checkout attempts expire.</div><form className="admin-form" onSubmit={createCoupon}><label>Coupon code<input required minLength={3} maxLength={32} value={couponCode} onChange={(e) => setCouponCode(e.target.value.replace(/[^a-z0-9_-]/gi, "").toUpperCase())} /></label><label>Discount type<select value={couponType} onChange={(e) => setCouponType(e.target.value as "percent" | "fixed")}><option value="percent">Percentage</option><option value="fixed">Fixed amount (paise)</option></select></label><label>Discount value<input required type="number" min="1" max={couponType === "percent" ? 100 : undefined} step="1" value={couponValue} onChange={(e) => setCouponValue(Number(e.target.value))} /><small>Fixed amounts are entered in paise (₹1 = 100 paise).</small></label><label>Minimum cart value (₹)<input type="number" min="0" step="0.01" value={couponMinOrderRupees} onChange={(e) => setCouponMinOrderRupees(Number(e.target.value))} /></label><label>Maximum discount (₹, optional)<input type="number" min="0.01" step="0.01" value={couponMaxDiscountRupees} onChange={(e) => setCouponMaxDiscountRupees(e.target.value)} /></label><label>Usage limit (optional)<input type="number" min="1" step="1" value={couponUsageLimit} onChange={(e) => setCouponUsageLimit(e.target.value)} /></label><label>Expiry date (optional)<input type="datetime-local" value={couponExpiresAt} onChange={(e) => setCouponExpiresAt(e.target.value)} /></label><label className="admin-shipping-enable"><input type="checkbox" checked={couponActive} onChange={(e) => setCouponActive(e.target.checked)} /> Activate coupon immediately</label><button className="admin-primary" disabled={busy}>Create coupon</button></form></section><section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">{coupons.length} TOTAL</p><h2>Coupons</h2></div></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Code</th><th>Discount</th><th>Status</th><th /></tr></thead><tbody>{coupons.map((coupon) => <tr key={coupon.id}><td><strong>{coupon.code}</strong></td><td>{coupon.discountType === "percent" ? `${coupon.discountValue}%` : money(coupon.discountValue)}</td><td><span className={`admin-pill ${coupon.isActive ? "green" : "muted"}`}>{coupon.isActive ? "active" : "inactive"}</span></td><td><button className="admin-row-button" onClick={() => void toggleCoupon(coupon)} disabled={busy}>{coupon.isActive ? "Deactivate" : "Activate"}</button><small>{coupon.usedCount ?? 0} used · {coupon.reservedCount ?? 0} pending</small></td></tr>)}</tbody></table>{coupons.length === 0 && <EmptyState>No coupon documents were found.</EmptyState>}</div></section></div>}
       </section>
     </main>
   );

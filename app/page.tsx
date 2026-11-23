@@ -23,6 +23,7 @@ type Cart = CartQuantities;
 type CheckoutConfig = { enabled: boolean; mode: "test" | null; keyId: string; shippingPaise: number; livePaymentsEnabled: false; demoMode: boolean; demoCheckout: boolean };
 type RazorpayPaymentResponse = { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string };
 type PendingPayment = { orderId: string; response: RazorpayPaymentResponse };
+type AppliedCoupon = { code: string; discountPaise: number };
 type RazorpayOptions = {
   key: string; amount: number; currency: string; name: string; description: string; order_id: string;
   prefill: { name: string; email: string; contact: string };
@@ -91,6 +92,10 @@ export default function HomePage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
   const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(null);
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
   const cartRef = useRef<Cart>({});
   cartRef.current = cart;
 
@@ -253,7 +258,19 @@ export default function HomePage() {
     (sum, product) => sum + product.price * (cart[product.id] ?? 0),
     0,
   );
+  const subtotalPaise = Math.round(subtotal * 100);
+  const couponDiscountPaise = appliedCoupon?.discountPaise ?? 0;
+  const cartTotalPaise = Math.max(0, subtotalPaise - couponDiscountPaise);
   const cartIsBusy = Boolean(user) && !cloudCartReady;
+
+  useEffect(() => {
+    if (appliedCoupon) {
+      setAppliedCoupon(null);
+      setCouponError("Your bag changed. Apply the coupon again to refresh the discount.");
+    }
+  // A coupon quote is tied to the precise cart subtotal.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtotal]);
 
   function commitCartChange(next: Cart) {
     const previous = cartRef.current;
@@ -297,6 +314,36 @@ export default function HomePage() {
     if (quantity <= 0) delete next[id];
     else next[id] = Math.min(quantity, 20);
     commitCartChange(next);
+  }
+
+  async function applyCoupon() {
+    setCouponError(null);
+    if (!user) {
+      setCouponError("Sign in before applying a coupon.");
+      return;
+    }
+    if (!couponInput.trim()) {
+      setCouponError("Enter a coupon code.");
+      return;
+    }
+    setCouponBusy(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/store/coupons/validate", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code: couponInput.trim().toUpperCase(), subtotalPaise }),
+      });
+      const payload = await response.json().catch(() => ({})) as { code?: string; discountPaise?: number; error?: string };
+      if (!response.ok || !payload.code || !Number.isSafeInteger(payload.discountPaise)) throw new Error(payload.error || "This coupon could not be applied.");
+      setAppliedCoupon({ code: payload.code, discountPaise: Number(payload.discountPaise) });
+      setCouponInput(payload.code);
+    } catch (cause) {
+      setAppliedCoupon(null);
+      setCouponError(cause instanceof Error ? cause.message : "This coupon could not be applied.");
+    } finally {
+      setCouponBusy(false);
+    }
   }
 
   async function verifyPayment(orderId: string, response: RazorpayPaymentResponse) {
@@ -361,6 +408,7 @@ export default function HomePage() {
         body: JSON.stringify({
           addressId: selectedAddressId,
           requestId: crypto.randomUUID(),
+          couponCode: appliedCoupon?.code ?? null,
           items: cartItems.map((product) => ({ productId: product.id, quantity: cart[product.id] })),
         }),
       });
@@ -745,8 +793,8 @@ export default function HomePage() {
                       <strong>{formatPricePaise(Math.round(subtotal * 100))}</strong>
                     </div>
                     <div className="price-breakdown-row">
-                      <span>Discount / coupon</span>
-                      <strong>{formatPricePaise(0)}</strong>
+                      <span>Discount / coupon {appliedCoupon ? "(" + appliedCoupon.code + ")" : ""}</span>
+                      <strong>{couponDiscountPaise ? "−" + formatPricePaise(couponDiscountPaise) : formatPricePaise(0)}</strong>
                     </div>
                     <div className="price-breakdown-row">
                       <span>Delivery</span>
@@ -758,12 +806,19 @@ export default function HomePage() {
                     </div>
                     <div className="price-breakdown-row price-breakdown-total">
                       <span>{isDemoCatalogueMode ? "Total for test payment" : "Items total before delivery"}</span>
-                      <strong>{formatPricePaise(Math.round(subtotal * 100))}</strong>
+                      <strong>{formatPricePaise(cartTotalPaise)}</strong>
                     </div>
                   </section>
+                  <div className="coupon-apply-row">
+                    <label htmlFor="checkout-coupon-code">COUPON CODE<input id="checkout-coupon-code" maxLength={32} value={couponInput} onChange={(event) => { setCouponInput(event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "")); setCouponError(null); }} placeholder="ENTER CODE" /></label>
+                    <button type="button" disabled={couponBusy || !couponInput.trim() || !user} onClick={() => void applyCoupon()}>{couponBusy ? "CHECKING…" : appliedCoupon ? "RECHECK" : "APPLY"}</button>
+                    {appliedCoupon && <button type="button" className="coupon-remove" onClick={() => { setAppliedCoupon(null); setCouponInput(""); setCouponError(null); }}>REMOVE</button>}
+                  </div>
+                  {couponError && <p className="checkout-feedback error" role="alert">{couponError}</p>}
+                  {appliedCoupon && <p className="checkout-feedback">Coupon {appliedCoupon.code} applied. You save {formatPricePaise(appliedCoupon.discountPaise)}.</p>}
                   <p className="price-breakdown-footnote">
                     {isDemoCatalogueMode
-                      ? "Demo sample prices only. No coupon discount, delivery fee or GST is collected. This test order will not be shipped and will not change stock."
+                      ? "Demo sample prices only. Coupon discounts are simulated; delivery and GST are not collected. This test order will not be shipped and will not change stock."
                       : "This checkout is test-only. Delivery is recalculated for the saved PIN code at checkout; GST/tax is not calculated in this test build. No real payment is collected."}
                   </p>
                   {isDemoCatalogueMode ? (
