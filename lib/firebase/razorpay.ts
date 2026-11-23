@@ -9,7 +9,21 @@ import {
 } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 
-export type RazorpayMode = "test";
+export type RazorpayMode = "test" | "live";
+
+function razorpayCredentials(mode: RazorpayMode) {
+  if (mode === "test") {
+    const config = checkoutConfig();
+    if (!config.enabled) throw new Error("Razorpay test mode is not configured.");
+    return { keyId: config.keyId, keySecret: config.keySecret };
+  }
+  const keyId = process.env.RAZORPAY_LIVE_KEY_ID ?? "";
+  const keySecret = process.env.RAZORPAY_LIVE_KEY_SECRET ?? "";
+  if (process.env.RAZORPAY_ALLOW_LIVE_REFUNDS !== "true" || !keyId.startsWith("rzp_live_") || !keySecret) {
+    throw new Error("Live refunds are not enabled. Add live Razorpay credentials and explicitly enable live refunds.");
+  }
+  return { keyId, keySecret };
+}
 
 export function checkoutConfig() {
   const keyId = process.env.RAZORPAY_KEY_ID ?? "";
@@ -41,10 +55,9 @@ export function checkoutConfig() {
   };
 }
 
-export async function razorpayRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const config = checkoutConfig();
-  if (!config.enabled) throw new Error("Razorpay test mode is not configured.");
-  const authorization = Buffer.from(`${config.keyId}:${config.keySecret}`).toString("base64");
+export async function razorpayRequest<T>(path: string, init: RequestInit = {}, mode: RazorpayMode = "test"): Promise<T> {
+  const credentials = razorpayCredentials(mode);
+  const authorization = Buffer.from(`${credentials.keyId}:${credentials.keySecret}`).toString("base64");
   const response = await fetch(`https://api.razorpay.com/v1${path}`, {
     ...init,
     headers: {
@@ -119,6 +132,7 @@ export async function releaseReservation(
 
 export async function markOrderPaid(orderRef: DocumentReference<DocumentData>, paymentId: string) {
   const db = adminDb();
+  let emailDetails: { to: string; orderNumber: string; demoOrder: boolean } | null = null;
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(orderRef);
     if (!snapshot.exists) return;
@@ -148,13 +162,34 @@ export async function markOrderPaid(orderRef: DocumentReference<DocumentData>, p
       paymentMode: "test",
       paymentId,
       couponUseReserved: false,
-      couponRedeemed: typeof order.couponCode === "string" ? true : false,
+      couponRedeemed: typeof order.couponCode === "string",
       stockReserved: false,
       inventoryIssue: FieldValue.delete(),
       paidAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    if (typeof order.customerEmail === "string" && order.customerEmail) {
+      emailDetails = { to: order.customerEmail, orderNumber: String(order.orderNumber ?? orderRef.id), demoOrder: order.demoOrder === true };
+    }
   });
+
+  if (emailDetails) {
+    const { sendTransactionalEmail } = await import("@/lib/notifications/email");
+    const result = await sendTransactionalEmail({
+      to: emailDetails.to,
+      orderNumber: emailDetails.orderNumber,
+      subject: emailDetails.demoOrder ? "POKHAR’S test payment received" : "POKHAR’S order confirmed",
+      heading: emailDetails.demoOrder ? "Test payment captured" : "Your order is confirmed",
+      message: emailDetails.demoOrder
+        ? "Your Razorpay Test Mode payment was captured successfully. This was a test simulation only; no real money was collected and no product will be packed or dispatched."
+        : "Your payment has been confirmed. We’ll send another update when your order moves through fulfilment.",
+    });
+    await orderRef.update({
+      paymentConfirmationEmailStatus: result.ok ? "sent" : result.reason,
+      paymentConfirmationEmailId: result.ok ? result.id ?? null : null,
+      paymentConfirmationEmailUpdatedAt: FieldValue.serverTimestamp(),
+    }).catch(() => undefined);
+  }
 }
 
 /** Release expired unpaid reservations after asking Razorpay whether a payment was captured. */
