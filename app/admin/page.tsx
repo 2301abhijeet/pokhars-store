@@ -21,6 +21,25 @@ type AdminOrder = {
   carrier?: string; trackingNumber?: string; trackingUrl?: string;
 };
 type Coupon = { id: string; code: string; discountType: "percent" | "fixed"; discountValue: number; isActive: boolean };
+type ShippingZoneForm = {
+  id: string;
+  name: string;
+  pincodes: string;
+  shippingFeeRupees: string;
+  freeShippingAboveRupees: string;
+  deliveryMinDays: number;
+  deliveryMaxDays: number;
+};
+type ShippingForm = {
+  enabled: boolean;
+  policyNote: string;
+  handlingMinDays: number;
+  handlingMaxDays: number;
+  zones: ShippingZoneForm[];
+};
+const blankShippingForm: ShippingForm = {
+  enabled: false, policyNote: "", handlingMinDays: 0, handlingMaxDays: 0, zones: [],
+};
 const isDemoCatalogueMode = process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "true";
 
 type ProductForm = Omit<AdminProduct, "id">;
@@ -75,7 +94,8 @@ export default function AdminPage() {
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [tab, setTab] = useState<"overview" | "products" | "inventory" | "orders" | "coupons">("overview");
+  const [tab, setTab] = useState<"overview" | "products" | "inventory" | "orders" | "shipping" | "coupons">("overview");
+  const [shippingForm, setShippingForm] = useState<ShippingForm>(blankShippingForm);
   const [productForm, setProductForm] = useState<ProductForm>(blankProduct);
   const [editing, setEditing] = useState<string | null>(null);
   const [couponCode, setCouponCode] = useState("");
@@ -101,10 +121,29 @@ export default function AdminPage() {
     try {
       await api("/api/admin/access");
       setAuthorized(true);
-      const [nextProducts, nextOrders, nextCoupons] = await Promise.all([
-        api("/api/admin/products"), api("/api/admin/orders"), api("/api/admin/coupons"),
+      const [nextProducts, nextOrders, nextCoupons, nextShipping] = await Promise.all([
+        api("/api/admin/products"), api("/api/admin/orders"), api("/api/admin/coupons"), api("/api/admin/shipping"),
       ]);
       setProducts(nextProducts); setOrders(nextOrders); setCoupons(nextCoupons);
+      const savedShipping = nextShipping.settings ?? {};
+      setShippingForm({
+        enabled: savedShipping.enabled === true,
+        policyNote: typeof savedShipping.policyNote === "string" ? savedShipping.policyNote : "",
+        handlingMinDays: Number(savedShipping.handlingMinDays ?? 0),
+        handlingMaxDays: Number(savedShipping.handlingMaxDays ?? 0),
+        zones: Array.isArray(savedShipping.zones) ? savedShipping.zones.map((zone: {
+          id?: string; name?: string; pincodes?: string[]; shippingFeePaise?: number;
+          freeShippingAbovePaise?: number | null; deliveryMinDays?: number; deliveryMaxDays?: number;
+        }) => ({
+          id: zone.id ?? `zone-${Math.random().toString(36).slice(2, 9)}`,
+          name: zone.name ?? "",
+          pincodes: Array.isArray(zone.pincodes) ? zone.pincodes.join(", ") : "",
+          shippingFeeRupees: (Number(zone.shippingFeePaise ?? 0) / 100).toFixed(2),
+          freeShippingAboveRupees: zone.freeShippingAbovePaise == null ? "" : (Number(zone.freeShippingAbovePaise) / 100).toFixed(2),
+          deliveryMinDays: Number(zone.deliveryMinDays ?? 1),
+          deliveryMaxDays: Number(zone.deliveryMaxDays ?? 5),
+        })) : [],
+      });
     } catch (cause) {
       setAuthorized(false);
       setError(cause instanceof Error ? cause.message : "Admin data could not be loaded.");
@@ -235,6 +274,61 @@ export default function AdminPage() {
     finally { setBusy(false); }
   }
 
+  function updateShippingZone(index: number, patch: Partial<ShippingZoneForm>) {
+    setShippingForm((current) => ({
+      ...current,
+      zones: current.zones.map((zone, zoneIndex) => zoneIndex === index ? { ...zone, ...patch } : zone),
+    }));
+  }
+
+  function addShippingZone() {
+    setShippingForm((current) => ({
+      ...current,
+      zones: [...current.zones, {
+        id: `zone-${Date.now().toString(36)}`,
+        name: "",
+        pincodes: "",
+        shippingFeeRupees: "0",
+        freeShippingAboveRupees: "",
+        deliveryMinDays: 3,
+        deliveryMaxDays: 7,
+      }],
+    }));
+  }
+
+  async function saveShipping(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const zones = shippingForm.zones.map((zone) => ({
+        id: zone.id,
+        name: zone.name.trim(),
+        pincodes: zone.pincodes.split(/[\\s,;]+/).map((pin) => pin.trim()).filter(Boolean),
+        shippingFeePaise: Math.round(Number(zone.shippingFeeRupees) * 100),
+        freeShippingAbovePaise: zone.freeShippingAboveRupees.trim() === ""
+          ? null : Math.round(Number(zone.freeShippingAboveRupees) * 100),
+        deliveryMinDays: Number(zone.deliveryMinDays),
+        deliveryMaxDays: Number(zone.deliveryMaxDays),
+      }));
+      await api("/api/admin/shipping", {
+        method: "PUT",
+        body: JSON.stringify({
+          enabled: shippingForm.enabled,
+          policyNote: shippingForm.policyNote,
+          handlingMinDays: shippingForm.handlingMinDays,
+          handlingMaxDays: shippingForm.handlingMaxDays,
+          zones,
+        }),
+      });
+      setNotice("Shipping zones and delivery rules saved.");
+      await loadData();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Shipping rules could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function createCoupon(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(null); setNotice(null);
     try {
@@ -252,7 +346,7 @@ export default function AdminPage() {
   }
 
   const tabs = useMemo(() => [
-    ["overview", "Overview"], ["products", "Products"], ["inventory", `Inventory${lowStock.length ? ` · ${lowStock.length}` : ""}`], ["orders", "Orders"], ["coupons", "Coupons"],
+    ["overview", "Overview"], ["products", "Products"], ["inventory", `Inventory${lowStock.length ? ` · ${lowStock.length}` : ""}`], ["orders", "Orders"], ["shipping", "Shipping"], ["coupons", "Coupons"],
   ] as const, [lowStock.length]);
 
   if (loading || checking) return <main className="admin-gate"><div className="admin-gate-card"><span className="admin-mark">P</span><p>Checking secure access…</p></div></main>;
@@ -355,6 +449,75 @@ export default function AdminPage() {
         </div>}
         {tab === "inventory" && <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">STOCK CONTROL</p><h2>Inventory</h2></div><span className="admin-pill amber">Alert at 5 units</span></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Product</th><th>On hand</th><th>Storefront</th><th>Action</th></tr></thead><tbody>{products.slice().sort((a, b) => a.stockQuantity - b.stockQuantity).map((product) => <tr key={product.id}><td><strong>{product.name}</strong><small>{product.category} · {product.netWeightGrams} g</small></td><td><strong className={product.stockQuantity <= 5 ? "stock-low" : ""}>{product.stockQuantity}</strong></td><td>{product.isActive && product.visibility === "published" ? "Published" : "Hidden"}</td><td><button className="admin-row-button" onClick={() => editProduct(product)}>Adjust stock</button></td></tr>)}</tbody></table></div></section>}
         {tab === "orders" && <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">CUSTOMER ORDERS</p><h2>Orders</h2></div><span className="admin-pill muted">Latest 200</span></div><OrderTable orders={orders} busy={busy} updateOrder={updateOrder} /></section>}
+        {tab === "shipping" && (
+          <div className="admin-products-layout shipping-admin-layout">
+            <section className="admin-panel admin-form-panel">
+              <div className="admin-panel-heading"><div><p className="admin-eyebrow">DELIVERY CONFIGURATION</p><h2>Shipping rules</h2></div><span className={`admin-pill ${shippingForm.enabled ? "green" : "muted"}`}>{shippingForm.enabled ? "enabled" : "disabled"}</span></div>
+              <div className="admin-alert warning">
+                PIN-code serviceability is manual. Only add PIN codes you have confirmed with your chosen courier or delivery partner. This does not query a courier network in real time.
+              </div>
+              <form className="admin-form" onSubmit={saveShipping}>
+                <label className="admin-shipping-enable">
+                  <input type="checkbox" checked={shippingForm.enabled} onChange={(event) => setShippingForm((current) => ({ ...current, enabled: event.target.checked }))} />
+                  Enable configured shipping rules
+                </label>
+                <div className="admin-form-section-title">Handling and delivery estimates</div>
+                <div className="admin-shipping-grid">
+                  <label>Handling time · minimum days
+                    <input type="number" min="0" max="30" step="1" value={shippingForm.handlingMinDays} onChange={(event) => setShippingForm((current) => ({ ...current, handlingMinDays: Number(event.target.value) }))} required />
+                  </label>
+                  <label>Handling time · maximum days
+                    <input type="number" min={shippingForm.handlingMinDays} max="30" step="1" value={shippingForm.handlingMaxDays} onChange={(event) => setShippingForm((current) => ({ ...current, handlingMaxDays: Number(event.target.value) }))} required />
+                  </label>
+                </div>
+                <label>Shipping policy note (optional)
+                  <textarea rows={4} maxLength={1200} value={shippingForm.policyNote} onChange={(event) => setShippingForm((current) => ({ ...current, policyNote: event.target.value }))} placeholder="Add a customer-facing note about dispatch, delays or delivery handling." />
+                  <small>{shippingForm.policyNote.length}/1200 characters. Do not add delivery guarantees you cannot meet.</small>
+                </label>
+                <div className="admin-shipping-form-actions">
+                  <button className="admin-primary" disabled={busy}>{busy ? "SAVING…" : "SAVE SHIPPING SETTINGS"}</button>
+                  <button className="admin-secondary" type="button" disabled={busy} onClick={addShippingZone}>+ ADD DELIVERY ZONE</button>
+                </div>
+              </form>
+            </section>
+
+            <section className="admin-panel">
+              <div className="admin-panel-heading"><div><p className="admin-eyebrow">{shippingForm.zones.length} CONFIGURED</p><h2>Delivery zones</h2></div></div>
+              {shippingForm.zones.length === 0 ? (
+                <EmptyState>No delivery zones yet. Add zones only after checking coverage with your courier partner.</EmptyState>
+              ) : (
+                <div className="admin-shipping-zones">
+                  {shippingForm.zones.map((zone, index) => (
+                    <article className="admin-shipping-zone" key={zone.id}>
+                      <div className="admin-shipping-zone-heading"><strong>ZONE {index + 1}</strong><button type="button" className="admin-row-button" disabled={busy} onClick={() => setShippingForm((current) => ({ ...current, zones: current.zones.filter((_, i) => i !== index) }))}>REMOVE</button></div>
+                      <label>Zone name
+                        <input value={zone.name} maxLength={60} placeholder="e.g. Local delivery" onChange={(event) => updateShippingZone(index, { name: event.target.value })} />
+                      </label>
+                      <label>Serviceable PIN codes
+                        <textarea rows={3} value={zone.pincodes} placeholder="846001, 846004, 846005" onChange={(event) => updateShippingZone(index, { pincodes: event.target.value.replace(/[^0-9,;\\s]/g, "") })} />
+                        <small>Enter only verified 6-digit PIN codes, separated by commas or spaces. Each PIN can belong to one zone only.</small>
+                      </label>
+                      <div className="admin-shipping-grid">
+                        <label>Shipping fee (₹)
+                          <input type="number" min="0" max="100000" step="0.01" value={zone.shippingFeeRupees} onChange={(event) => updateShippingZone(index, { shippingFeeRupees: event.target.value })} />
+                        </label>
+                        <label>Free shipping above (₹, optional)
+                          <input type="number" min="0" max="1000000" step="0.01" value={zone.freeShippingAboveRupees} onChange={(event) => updateShippingZone(index, { freeShippingAboveRupees: event.target.value })} placeholder="Leave blank to disable" />
+                        </label>
+                        <label>Delivery estimate · min days
+                          <input type="number" min="1" max="60" step="1" value={zone.deliveryMinDays} onChange={(event) => updateShippingZone(index, { deliveryMinDays: Number(event.target.value) })} />
+                        </label>
+                        <label>Delivery estimate · max days
+                          <input type="number" min={zone.deliveryMinDays} max="60" step="1" value={zone.deliveryMaxDays} onChange={(event) => updateShippingZone(index, { deliveryMaxDays: Number(event.target.value) })} />
+                        </label>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
         {tab === "coupons" && <div className="admin-products-layout"><section className="admin-panel admin-form-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">PROMOTIONS</p><h2>Create coupon</h2></div></div><div className="admin-alert warning">Coupons are stored for admin management. Checkout does not validate or apply them yet, so new codes start inactive and cannot be activated here.</div><form className="admin-form" onSubmit={createCoupon}><label>Coupon code<input required minLength={3} maxLength={32} value={couponCode} onChange={(e) => setCouponCode(e.target.value.replace(/[^a-z0-9_-]/gi, "").toUpperCase())} /></label><label>Discount type<select value={couponType} onChange={(e) => setCouponType(e.target.value as "percent" | "fixed")}><option value="percent">Percentage</option><option value="fixed">Fixed amount (paise)</option></select></label><label>Discount value<input required type="number" min="1" max={couponType === "percent" ? 100 : undefined} step="1" value={couponValue} onChange={(e) => setCouponValue(Number(e.target.value))} /><small>Fixed amounts are entered in paise until checkout rules are defined.</small></label><button className="admin-primary" disabled={busy}>Create inactive coupon</button></form></section><section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">{coupons.length} TOTAL</p><h2>Coupons</h2></div></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Code</th><th>Discount</th><th>Status</th><th /></tr></thead><tbody>{coupons.map((coupon) => <tr key={coupon.id}><td><strong>{coupon.code}</strong></td><td>{coupon.discountType === "percent" ? `${coupon.discountValue}%` : money(coupon.discountValue)}</td><td><span className={`admin-pill ${coupon.isActive ? "green" : "muted"}`}>{coupon.isActive ? "active" : "inactive"}</span></td><td>{coupon.isActive ? <button className="admin-row-button" onClick={() => void deactivateCoupon(coupon)} disabled={busy}>Deactivate</button> : <span className="admin-dash">Activation pending checkout</span>}</td></tr>)}</tbody></table>{coupons.length === 0 && <EmptyState>No coupon documents were found.</EmptyState>}</div></section></div>}
       </section>
     </main>
