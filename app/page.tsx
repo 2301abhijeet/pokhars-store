@@ -27,6 +27,14 @@ type RazorpayOptions = {
   key: string; amount: number; currency: string; name: string; description: string; order_id: string;
   prefill: { name: string; email: string; contact: string };
   theme: { color: string };
+  config?: {
+    display: {
+      blocks: Record<string, { name: string; instruments: Array<{ method: string }> }>;
+      hide: Array<{ method: string; flows?: string[] }>;
+      sequence: string[];
+      preferences: { show_default_blocks: boolean };
+    };
+  };
   handler: (response: RazorpayPaymentResponse) => void | Promise<void>;
   modal: { ondismiss: () => void };
 };
@@ -229,7 +237,7 @@ export default function HomePage() {
   const catalogueProducts = firestoreProducts;
   const hasLiveCatalogue = firestoreProducts.length > 0;
   const catalogueMessage = isDemoCatalogueMode
-    ? "DEMO CATALOGUE · SAMPLE PRODUCTS ONLY · CHECKOUT DISABLED"
+    ? "DEMO CATALOGUE · TEST PAYMENTS ONLY · NO DELIVERY"
     : hasLiveCatalogue
       ? "LIVE CATALOGUE · FIRESTORE CONNECTED"
     : catalogueError
@@ -376,6 +384,21 @@ export default function HomePage() {
         order_id: order.razorpayOrderId,
         prefill: { name: address.recipientName, email: user.email || "", contact: address.phone },
         theme: { color: "#ffd45a" },
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: "Pay using UPI",
+                instruments: [{ method: "upi" }],
+              },
+            },
+            // UPI Collect (manual UPI ID entry) is deprecated for standard
+            // desktop web checkout; show QR on desktop and Intent on mobile web.
+            hide: [{ method: "upi", flows: ["collect"] }],
+            sequence: ["block.upi"],
+            preferences: { show_default_blocks: true },
+          },
+        },
         handler: async (response) => {
           setPendingPayment({ orderId: order.orderId!, response });
           try { await verifyPayment(order.orderId!, response); }
@@ -717,17 +740,40 @@ export default function HomePage() {
                         ? (cloudCartReady ? "✓ Cart synced to your account" : "Syncing your cart…")
                         : "Cart saved on this device"}
                   </p>
-                  <div><span>{isDemoCatalogueMode ? "Demo test subtotal · sample only" : "Subtotal"}</span><strong>{formatPrice(subtotal)}</strong></div>
+                  <section className="price-breakdown" aria-label="Price breakup">
+                    <div className="price-breakdown-row">
+                      <span>Items subtotal ({cartCount} {cartCount === 1 ? "pack" : "packs"})</span>
+                      <strong>{formatPricePaise(Math.round(subtotal * 100))}</strong>
+                    </div>
+                    <div className="price-breakdown-row">
+                      <span>Discount / coupon</span>
+                      <strong>{formatPricePaise(0)}</strong>
+                    </div>
+                    <div className="price-breakdown-row">
+                      <span>Delivery</span>
+                      <strong>{isDemoCatalogueMode ? formatPricePaise(0) : "Calculated at checkout"}</strong>
+                    </div>
+                    <div className="price-breakdown-row">
+                      <span>GST / taxes</span>
+                      <strong>{isDemoCatalogueMode ? "Not charged" : "Not included"}</strong>
+                    </div>
+                    <div className="price-breakdown-row price-breakdown-total">
+                      <span>{isDemoCatalogueMode ? "Total for test payment" : "Items total before delivery"}</span>
+                      <strong>{formatPricePaise(Math.round(subtotal * 100))}</strong>
+                    </div>
+                  </section>
+                  <p className="price-breakdown-footnote">
+                    {isDemoCatalogueMode
+                      ? "Demo sample prices only. No coupon discount, delivery fee or GST is collected. This test order will not be shipped and will not change stock."
+                      : "This checkout is test-only. Delivery is recalculated for the saved PIN code at checkout; GST/tax is not calculated in this test build. No real payment is collected."}
+                  </p>
                   {isDemoCatalogueMode ? (
                     <div className="checkout-notice demo-checkout-notice">
                       <strong>DEMO TEST CHECKOUT · NO DELIVERY</strong>
                       <span>Use Razorpay Test Mode to simulate payment for sample products. No real money is taken, no parcel is shipped and sample stock is never changed.</span>
                     </div>
                   ) : (
-                    <>
-                      <ShippingChecker subtotalPaise={Math.round(subtotal * 100)} />
-                      <p>Taxes are not included. Final delivery charges are recalculated for the selected PIN code when checkout is enabled.</p>
-                    </>
+                    <ShippingChecker subtotalPaise={Math.round(subtotal * 100)} />
                   )}
                   {!user ? (
                     <div className="checkout-notice">Sign in to choose a saved address/contact before test checkout. No real payment will be taken.</div>
@@ -753,6 +799,7 @@ export default function HomePage() {
                   >
                     {checkoutBusy ? "PREPARING TEST CHECKOUT…" : !user ? "SIGN IN TO CHECK OUT" : checkoutConfig?.enabled ? "CONTINUE TO TEST PAYMENT" : "TEST CHECKOUT NOT CONFIGURED"}
                   </button>
+                  <p className="checkout-method-note">UPI QR ON DESKTOP · UPI APP INTENT ON MOBILE · CARDS · NETBANKING · WALLETS</p>
                   <p className="checkout-live-note">{isDemoCatalogueMode ? "DEMO TEST ONLY · NO REAL MONEY · NO DELIVERY OR STOCK CHANGES" : "TEST MODE ONLY · NO REAL PAYMENT · LIVE PAYMENTS DISABLED"}</p>
                 </div>
               </>
