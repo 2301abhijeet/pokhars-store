@@ -361,6 +361,21 @@ export default function AdminPage() {
     }
   }
 
+  async function sendTestRefundEmail(order: AdminOrder, outcome: "processed" | "failed") {
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      await api(`/api/admin/orders/${order.id}/test-refund-email`, {
+        method: "POST",
+        body: JSON.stringify({ outcome }),
+      });
+      setNotice(`Sample refund ${outcome} email sent for order ${order.orderNumber ?? order.id}. No Razorpay refund or order update was performed.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Sample refund email could not be sent.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function updateShippingZone(index: number, patch: Partial<ShippingZoneForm>) {
     setShippingForm((current) => ({
       ...current,
@@ -468,7 +483,7 @@ export default function AdminPage() {
             <article><span>PUBLISHED PRODUCTS</span><strong>{activeProducts}</strong><small>Active and visible in the storefront</small></article>
             <article className={lowStock.length ? "attention" : ""}><span>LOW STOCK · 5 OR FEWER</span><strong>{lowStock.length}</strong><small>{lowStock.length ? "Review inventory" : "All products above alert level"}</small></article>
           </div>
-          <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">LATEST ACTIVITY</p><h2>Recent orders</h2></div><button className="admin-link-button" onClick={() => setTab("orders")}>View all →</button></div><OrderTable orders={operationalOrders.slice(0, 5)} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} createCourierDraft={createCourierDraft} sendTestStatusEmail={sendTestStatusEmail} sendTestTrackingEmail={sendTestTrackingEmail} /></section>
+          <section className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">LATEST ACTIVITY</p><h2>Recent orders</h2></div><button className="admin-link-button" onClick={() => setTab("orders")}>View all →</button></div><OrderTable orders={operationalOrders.slice(0, 5)} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} createCourierDraft={createCourierDraft} sendTestStatusEmail={sendTestStatusEmail} sendTestTrackingEmail={sendTestTrackingEmail} sendTestRefundEmail={sendTestRefundEmail} /></section>
           <p className="admin-footnote">Revenue uses stored totals from non-test orders marked paid. Test orders are labeled and excluded. Refunds, fees and settlement reconciliation are not included.</p>
         </>}
         {tab === "products" && <div className="admin-products-layout">
@@ -550,7 +565,7 @@ export default function AdminPage() {
               <div><p className="admin-eyebrow">CUSTOMER ORDERS</p><h2>Orders</h2></div>
               <span className="admin-pill muted">{operationalOrders.length} orders</span>
             </div>
-            <OrderTable orders={operationalOrders} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} createCourierDraft={createCourierDraft} sendTestStatusEmail={sendTestStatusEmail} sendTestTrackingEmail={sendTestTrackingEmail} />
+            <OrderTable orders={operationalOrders} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} createCourierDraft={createCourierDraft} sendTestStatusEmail={sendTestStatusEmail} sendTestTrackingEmail={sendTestTrackingEmail} sendTestRefundEmail={sendTestRefundEmail} />
           </section>
           {unpaidTestAttempts.length > 0 && (
             <details className="admin-test-attempts">
@@ -559,7 +574,7 @@ export default function AdminPage() {
                 <span className="admin-test-attempt-count">{unpaidTestAttempts.length}</span>
               </summary>
               <div className="admin-test-attempt-body">
-                <OrderTable orders={unpaidTestAttempts} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} createCourierDraft={createCourierDraft} sendTestStatusEmail={sendTestStatusEmail} sendTestTrackingEmail={sendTestTrackingEmail} />
+                <OrderTable orders={unpaidTestAttempts} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} createCourierDraft={createCourierDraft} sendTestStatusEmail={sendTestStatusEmail} sendTestTrackingEmail={sendTestTrackingEmail} sendTestRefundEmail={sendTestRefundEmail} />
               </div>
             </details>
           )}
@@ -641,7 +656,7 @@ export default function AdminPage() {
 
 function EmptyState({ children }: { children: React.ReactNode }) { return <div className="admin-empty">{children}</div>; }
 
-function OrderTable({ orders, busy, updateOrder, refundOrder, createCourierDraft, sendTestStatusEmail, sendTestTrackingEmail }: { orders: AdminOrder[]; busy: boolean; updateOrder: (order: AdminOrder, status: string, shipment?: { carrier: string; trackingNumber: string; trackingUrl: string }) => Promise<void>; refundOrder: (order: AdminOrder, amountPaise: number | undefined, idempotencyKey: string) => Promise<boolean>; createCourierDraft: (order: AdminOrder) => Promise<boolean>; sendTestStatusEmail: (order: AdminOrder, status: "processing" | "shipped" | "delivered") => Promise<void>; sendTestTrackingEmail: (order: AdminOrder) => Promise<void> }) {
+function OrderTable({ orders, busy, updateOrder, refundOrder, createCourierDraft, sendTestStatusEmail, sendTestTrackingEmail, sendTestRefundEmail }: { orders: AdminOrder[]; busy: boolean; updateOrder: (order: AdminOrder, status: string, shipment?: { carrier: string; trackingNumber: string; trackingUrl: string }) => Promise<void>; refundOrder: (order: AdminOrder, amountPaise: number | undefined, idempotencyKey: string) => Promise<boolean>; createCourierDraft: (order: AdminOrder) => Promise<boolean>; sendTestStatusEmail: (order: AdminOrder, status: "processing" | "shipped" | "delivered") => Promise<void>; sendTestTrackingEmail: (order: AdminOrder) => Promise<void>; sendTestRefundEmail: (order: AdminOrder, outcome: "processed" | "failed") => Promise<void> }) {
   const [shipmentDrafts, setShipmentDrafts] = useState<Record<string, { carrier: string; trackingNumber: string; trackingUrl: string }>>({});
   const [refundDrafts, setRefundDrafts] = useState<Record<string, string>>({});
   const [refundKeys, setRefundKeys] = useState<Record<string, { key: string; amountPaise?: number }>>({});
@@ -701,6 +716,14 @@ function OrderTable({ orders, busy, updateOrder, refundOrder, createCourierDraft
                   SEND SAMPLE TRACKING EMAIL
                 </button>
                 <small>Uses a demo courier, demo AWB and example.com tracking link. No real courier booking, AWB assignment, pickup or dispatch is performed.</small>
+                <p className="admin-shipment-heading">TEST REFUND EMAIL</p>
+                <small>Sends sample ₹1.00 refund notifications only. It does not call Razorpay, issue a refund or change payment/order records.</small>
+                <button className="admin-row-button" disabled={busy} onClick={() => void sendTestRefundEmail(order, "processed")}>
+                  SEND SAMPLE REFUND PROCESSED EMAIL
+                </button>
+                <button className="admin-row-button" disabled={busy} onClick={() => void sendTestRefundEmail(order, "failed")}>
+                  SEND SAMPLE REFUND FAILED EMAIL
+                </button>
               </div>
             )}
             {order.paymentId && ["paid", "partially_refunded"].includes(order.paymentStatus) && (
