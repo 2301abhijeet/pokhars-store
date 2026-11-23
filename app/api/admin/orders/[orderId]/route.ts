@@ -1,6 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb, adminOrResponse, isResponse, jsonError } from "@/lib/firebase/admin";
 import { orderStatuses, isRecord } from "@/lib/firebase/admin-validation";
+import { sendTransactionalEmail } from "@/lib/notifications/email";
 
 export const runtime = "nodejs";
 
@@ -82,12 +83,12 @@ export async function PATCH(request: Request, context: Context) {
   const now = new Date().toISOString();
   const updates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
 
+  const statusNotes: Record<string, string> = {
+    processing: "Your order is being prepared.",
+    shipped: "Your order has been handed to the courier.",
+    delivered: "Your order has been marked as delivered.",
+  };
   if (statusChanged) {
-    const statusNotes: Record<string, string> = {
-      processing: "Your order is being prepared.",
-      shipped: "Your order has been handed to the courier.",
-      delivered: "Your order has been marked as delivered.",
-    };
     updates.status = requestedStatus;
     updates.statusHistory = FieldValue.arrayUnion({
       status: requestedStatus,
@@ -113,5 +114,22 @@ export async function PATCH(request: Request, context: Context) {
   }
 
   await ref.update(updates);
+  if (typeof order.customerEmail === "string" && order.customerEmail && (statusChanged || trackingChanged)) {
+    const email = await sendTransactionalEmail({
+      to: order.customerEmail,
+      orderNumber: String(order.orderNumber ?? orderId),
+      subject: statusChanged ? "POKHAR’S order update" : "POKHAR’S tracking update",
+      heading: statusChanged
+        ? requestedStatus === "processing" ? "Your order is being prepared" : requestedStatus === "shipped" ? "Your order has shipped" : "Your order was delivered"
+        : "Your tracking details were updated",
+      message: statusChanged
+        ? statusNotes[requestedStatus] ?? "Your order status has been updated."
+        : "Courier: " + nextCarrier + ". Tracking number: " + nextTrackingNumber + (nextTrackingUrl ? ". Track it here: " + nextTrackingUrl : "."),
+    });
+    await ref.update({
+      statusNotificationEmailStatus: email.ok ? "sent" : email.reason,
+      statusNotificationEmailUpdatedAt: FieldValue.serverTimestamp(),
+    }).catch(() => undefined);
+  }
   return Response.json({ ok: true, status: requestedStatus });
 }

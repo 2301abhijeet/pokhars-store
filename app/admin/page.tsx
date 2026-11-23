@@ -273,25 +273,27 @@ export default function AdminPage() {
     finally { setBusy(false); }
   }
 
-  async function refundOrder(order: AdminOrder, amountPaise?: number) {
+  async function refundOrder(order: AdminOrder, amountPaise: number | undefined, idempotencyKey: string): Promise<boolean> {
     const available = Math.max(0, order.totalPaise - (order.refundedPaise ?? 0) - (order.refundsInFlightPaise ?? 0));
     const amount = amountPaise ?? available;
     if (amount < 100 || amount > available) {
       setError("Enter a refund amount from ₹1 up to the remaining refundable balance.");
-      return;
+      return false;
     }
     const display = money(amount);
-    if (!window.confirm("Initiate a " + display + " refund for order " + (order.orderNumber ?? order.id) + "? This request is sent to Razorpay and cannot be undone.")) return;
+    if (!window.confirm("Initiate a " + display + " refund for order " + (order.orderNumber ?? order.id) + "? This request is sent to Razorpay and cannot be undone.")) return false;
     setBusy(true); setError(null); setNotice(null);
     try {
       const result = await api(`/api/admin/orders/${order.id}/refund`, {
         method: "POST",
-        body: JSON.stringify({ amountPaise: amount, reason: "Admin initiated refund", idempotencyKey: crypto.randomUUID() }),
+        body: JSON.stringify({ amountPaise: amount, reason: "Admin initiated refund", idempotencyKey }),
       });
-      setNotice("Refund request recorded with Razorpay: " + display + ". Status: " + String(result.status ?? "pending") + ".");
+      setNotice("Refund request sent to Razorpay: " + display + ". Status: " + String(result.status ?? "pending") + ".");
       await loadData();
+      return true;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Refund could not be initiated.");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -506,7 +508,7 @@ export default function AdminPage() {
                 <span className="admin-test-attempt-count">{unpaidTestAttempts.length}</span>
               </summary>
               <div className="admin-test-attempt-body">
-                <OrderTable orders={unpaidTestAttempts} busy={busy} updateOrder={updateOrder} />
+                <OrderTable orders={unpaidTestAttempts} busy={busy} updateOrder={updateOrder} refundOrder={refundOrder} />
               </div>
             </details>
           )}
@@ -591,6 +593,7 @@ function EmptyState({ children }: { children: React.ReactNode }) { return <div c
 function OrderTable({ orders, busy, updateOrder, refundOrder }: { orders: AdminOrder[]; busy: boolean; updateOrder: (order: AdminOrder, status: string, shipment?: { carrier: string; trackingNumber: string; trackingUrl: string }) => Promise<void>; refundOrder: (order: AdminOrder, amountPaise?: number) => Promise<void> }) {
   const [shipmentDrafts, setShipmentDrafts] = useState<Record<string, { carrier: string; trackingNumber: string; trackingUrl: string }>>({});
   const [refundDrafts, setRefundDrafts] = useState<Record<string, string>>({});
+  const [refundKeys, setRefundKeys] = useState<Record<string, { key: string; amountPaise?: number }>>({});
   const defaultShipment = (order: AdminOrder) => ({
     carrier: order.carrier ?? "",
     trackingNumber: order.trackingNumber ?? "",
@@ -627,9 +630,25 @@ function OrderTable({ orders, busy, updateOrder, refundOrder }: { orders: AdminO
                 <p className="admin-shipment-heading">REFUND PAYMENT</p>
                 <small>Remaining refundable: {money(Math.max(0, order.totalPaise - (order.refundedPaise ?? 0) - (order.refundsInFlightPaise ?? 0)))}</small>
                 <label>REFUND AMOUNT IN RUPEES (LEAVE BLANK FOR FULL REMAINING)
-                  <input type="number" min="1" step="0.01" value={refundDrafts[order.id] ?? ""} placeholder={money(Math.max(0, order.totalPaise - (order.refundedPaise ?? 0) - (order.refundsInFlightPaise ?? 0)))} onChange={(event) => setRefundDrafts((current) => ({ ...current, [order.id]: event.target.value }))} />
+                  <input type="number" min="1" step="0.01" value={refundDrafts[order.id] ?? ""} placeholder={money(Math.max(0, order.totalPaise - (order.refundedPaise ?? 0) - (order.refundsInFlightPaise ?? 0)))} onChange={(event) => {
+                    const value = event.target.value;
+                    const amountPaise = value.trim() ? Math.round(Number(value) * 100) : undefined;
+                    setRefundDrafts((current) => ({ ...current, [order.id]: value }));
+                    setRefundKeys((current) => {
+                      if (!current[order.id] || current[order.id].amountPaise === amountPaise) return current;
+                      const next = { ...current }; delete next[order.id]; return next;
+                    });
+                  }} />
                 </label>
-                <button className="admin-row-button" disabled={busy || Number(refundDrafts[order.id] ?? 0) < 0} onClick={() => void refundOrder(order, refundDrafts[order.id]?.trim() ? Math.round(Number(refundDrafts[order.id]) * 100) : undefined)}>
+                <button className="admin-row-button" disabled={busy || Number(refundDrafts[order.id] ?? 0) < 0} onClick={() => {
+                  const amountPaise = refundDrafts[order.id]?.trim() ? Math.round(Number(refundDrafts[order.id]) * 100) : undefined;
+                  const existing = refundKeys[order.id];
+                  const key = existing && existing.amountPaise === amountPaise ? existing.key : crypto.randomUUID();
+                  setRefundKeys((current) => ({ ...current, [order.id]: { key, amountPaise } }));
+                  void refundOrder(order, amountPaise, key).then((ok) => {
+                    if (ok) setRefundKeys((current) => { const next = { ...current }; delete next[order.id]; return next; });
+                  });
+                }}>
                   INITIATE REFUND
                 </button>
                 <small>Test payments create simulated refunds. Live refunds require live API credentials and a separately enabled server flag.</small>
