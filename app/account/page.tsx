@@ -63,6 +63,15 @@ export default function AccountPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Expired or unsuccessful demo checkout attempts remain in the database
+  // for payment audit, but are separated from the customer's main order list.
+  const isFailedDemoAttempt = (order: AccountOrder) =>
+    order.demoOrder &&
+    order.paymentStatus !== "paid" &&
+    (["expired", "failed", "cancelled"].includes(order.status) || order.paymentStatus === "failed");
+  const testAttempts = orders.filter(isFailedDemoAttempt);
+  const visibleOrders = orders.filter((order) => !isFailedDemoAttempt(order));
+
   useEffect(() => {
     let active = true;
     if (authLoading) return () => { active = false; };
@@ -147,22 +156,22 @@ export default function AccountPage() {
 
             <div className="customer-orders-heading">
               <div><p className="section-kicker">YOUR SNACK JOURNEY</p><h2>Order history</h2></div>
-              <div className="customer-orders-actions"><span>{orders.length} ORDER{orders.length === 1 ? "" : "S"}</span><button type="button" className="customer-orders-refresh" disabled={ordersLoading} onClick={() => setRefreshKey((current) => current + 1)}>{ordersLoading ? "REFRESHING…" : "REFRESH STATUS ↻"}</button></div>
+              <div className="customer-orders-actions"><span>{visibleOrders.length} ORDER{visibleOrders.length === 1 ? "" : "S"}</span><button type="button" className="customer-orders-refresh" disabled={ordersLoading} onClick={() => setRefreshKey((current) => current + 1)}>{ordersLoading ? "REFRESHING…" : "REFRESH STATUS ↻"}</button></div>
             </div>
 
             {error && <p className="customer-account-error" role="alert">{error}</p>}
             {ordersLoading ? (
               <div className="customer-account-empty">Loading your orders…</div>
-            ) : orders.length === 0 ? (
+            ) : visibleOrders.length === 0 ? (
               <div className="customer-account-empty">
                 <span className="customer-account-icon">✳</span>
-                <h2>No orders yet.</h2>
-                <p>{isDemoCatalogueMode ? "Your sample bag is ready to explore. Real ordering will be enabled after the POKHAR’S product details and store launch are finalised." : "Once you place your first order, its status and details will appear here."}</p>
+                <h2>No active or completed orders yet.</h2>
+                <p>{isDemoCatalogueMode ? "Your sample bag is ready to explore. Expired demo attempts are kept separately below for your reference." : "Once you place your first order, its status and details will appear here."}</p>
                 <Link className="address-primary-button" href="/">EXPLORE FLAVOURS ↗</Link>
               </div>
             ) : (
               <div className="customer-orders-list">
-                {orders.map((order) => (
+                {visibleOrders.map((order) => (
                   <article className="customer-order-card" key={order.id}>
                     <div className="customer-order-top">
                       <div><p className="customer-order-kicker">ORDER NUMBER</p><h3>{order.orderNumber}</h3><span>{dateLabel(order.createdAt)}</span></div>
@@ -227,6 +236,41 @@ export default function AccountPage() {
                   </article>
                 ))}
               </div>
+            )}
+
+            {testAttempts.length > 0 && (
+              <details className="customer-test-attempts">
+                <summary>
+                  <span>
+                    <strong>Test attempts</strong>
+                    <small>Expired or unsuccessful demo checkouts · kept for your records</small>
+                  </span>
+                  <span className="customer-test-attempt-count">{testAttempts.length}</span>
+                </summary>
+                <div className="customer-test-attempt-list">
+                  {testAttempts.map((order) => (
+                    <article className="customer-test-attempt" key={order.id}>
+                      <div className="customer-test-attempt-top">
+                        <div>
+                          <span className="customer-order-kicker">TEST ORDER</span>
+                          <strong>{order.orderNumber}</strong>
+                          <small>{dateLabel(order.createdAt)}</small>
+                        </div>
+                        <span className="customer-test-attempt-status">{statusLabel(order.status)}</span>
+                      </div>
+                      <div className="customer-test-attempt-items">
+                        {order.items.map((item, index) => (
+                          <span key={item.productId + "-attempt-" + index}>{item.name} × {item.quantity}</span>
+                        ))}
+                      </div>
+                      <div className="customer-test-attempt-bottom">
+                        <span>Not charged · No delivery · Stock unchanged</span>
+                        <strong>{money(order.totalPaise)}</strong>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </details>
             )}
           </>
         )}
