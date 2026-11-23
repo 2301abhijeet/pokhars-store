@@ -48,6 +48,15 @@ export function ShippingChecker({ subtotalPaise = 0 }: { subtotalPaise?: number 
     }
   }
 
+  if (process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "true") {
+    return (
+      <section className="shipping-checker" aria-label="Demo checkout delivery notice">
+        <div className="shipping-checker-heading"><span>DEMO TEST MODE</span><strong>Delivery is not applicable</strong></div>
+        <p className="shipping-checker-footnote">These are sample catalogue products. Test orders are not packed or shipped, and demo payments never change inventory.</p>
+      </section>
+    );
+  }
+
   return (
     <section className="shipping-checker" aria-label="Check delivery availability">
       <div className="shipping-checker-heading"><span>DELIVERY CHECK</span><strong>Check your PIN code</strong></div>
@@ -81,7 +90,7 @@ export function ShippingChecker({ subtotalPaise = 0 }: { subtotalPaise?: number 
           )}
         </div>
       )}
-      <small className="shipping-checker-footnote">Use the PIN from your delivery address. Availability and estimates use the store’s manually configured delivery zones, not a live courier lookup. Product pages estimate one pack; the bag checker uses the full bag subtotal. {process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "true" ? "Demo mode is active, so any quote is only a configuration preview; orders and payments are disabled." : "The saved-address PIN and final shipping fee are recalculated by the server at checkout."}</small>
+      <small className="shipping-checker-footnote">Use the PIN from your delivery address. Availability and estimates use the store’s manually configured delivery zones, not a live courier lookup. Product pages estimate one pack; the bag checker uses the full bag subtotal. { "The saved-address PIN and final shipping fee are recalculated by the server at checkout." }</small>
     </section>
   );
 }
