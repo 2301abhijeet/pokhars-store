@@ -57,12 +57,12 @@ function missingPublishDetails(product: ProductForm | AdminProduct) {
   return publishRequirements
     .filter(([key]) => {
       if (key === "packImageVerified") return product.packImageVerified !== true;
-      if (key === "fssaiLicenseNumber") return !/^[12]\\d{13}$/.test(String(product.fssaiLicenseNumber ?? "").trim());
+      if (key === "fssaiLicenseNumber") return !/^[12]\d{13}$/.test(String(product.fssaiLicenseNumber ?? "").trim());
       const value = product[key];
       if (typeof value !== "string" || !value.trim()) return true;
-      const normalized = value.trim().toLowerCase().replace(/[.,:;!?]+/g, "").replace(/\\s+/g, " ");
+      const normalized = value.trim().toLowerCase().replace(/[.,:;!?]+/g, "").replace(/\s+/g, " ");
       return ["exact ingredient list", "verified allergen declaration", "verified nutrition information", "legal business name and address", "actual licence number", "actual license number"].includes(normalized)
-        || /^(enter|add|insert|replace with|to be confirmed|tbd|todo)\\b/i.test(normalized);
+        || /^(enter|add|insert|replace with|to be confirmed|tbd|todo)\b/i.test(normalized);
     })
     .map(([, label]) => label);
 }
@@ -150,7 +150,7 @@ export default function AdminPage() {
       }
 
       const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-      const baseName = (productForm.name.trim() || file.name.replace(/\\.[^.]+$/, ""))
+      const baseName = (productForm.name.trim() || file.name.replace(/\.[^.]+$/, ""))
         .normalize("NFKD")
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
