@@ -113,7 +113,7 @@ export async function POST(request: Request, context: Context) {
       },
       mode,
     );
-  } catch (cause) {
+  } catch {
     // The request may have reached Razorpay even if the response timed out.
     // Keep the reservation and reuse the same idempotency key on retry.
     await requestRef.update({ state: "pending", lastError: "Gateway response uncertain; retry with the same key.", updatedAt: FieldValue.serverTimestamp() }).catch(() => undefined);

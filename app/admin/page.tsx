@@ -16,7 +16,7 @@ type AdminProduct = {
   isActive: boolean; visibility: "draft" | "published"; sortOrder?: number;
 };
 type AdminOrder = {
-  id: string; orderNumber?: string; userId: string; items?: Array<{ nameSnapshot: string; quantity: number; lineTotalPaise: number }>;
+  id: string; orderNumber?: string; userId: string; demoOrder?: boolean; items?: Array<{ nameSnapshot: string; quantity: number; lineTotalPaise: number }>;
   totalPaise: number; status: string; paymentStatus: string; paymentMode?: string; paymentId?: string; refundedPaise?: number; refundsInFlightPaise?: number; inventoryIssue?: string; createdAt?: unknown;
   refunds?: Array<{ refundId: string; amountPaise: number; status: string; reason?: string }>;
   shiprocketOrderId?: string; shiprocketShipmentId?: string; shiprocketAwb?: string; shiprocketStatus?: string; shiprocketDraftState?: string;
