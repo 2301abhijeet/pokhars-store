@@ -53,6 +53,140 @@ async function tokenV2(): Promise<string> {
   return data.token;
 }
 
+export type ShiprocketServiceabilityQuote = {
+  configured: true;
+  serviceable: boolean;
+  source: "shiprocket";
+  message: string;
+  courierName?: string;
+  courierCompanyId?: number;
+  shippingFeePaise?: number;
+  deliveryMinDays?: number;
+  deliveryMaxDays?: number;
+};
+
+export function shiprocketServiceabilitySetup() {
+  const required = [
+    "SHIPROCKET_API_EMAIL",
+    "SHIPROCKET_API_PASSWORD",
+    "SHIPROCKET_PICKUP_POSTCODE",
+    "SHIPROCKET_PACKAGE_LENGTH_CM",
+    "SHIPROCKET_PACKAGE_BREADTH_CM",
+    "SHIPROCKET_PACKAGE_HEIGHT_CM",
+    "SHIPROCKET_PACKAGING_WEIGHT_GRAMS",
+  ];
+  const missing = required.filter((key) => !envV2(key));
+  const positiveKeys = [
+    "SHIPROCKET_PICKUP_POSTCODE",
+    "SHIPROCKET_PACKAGE_LENGTH_CM",
+    "SHIPROCKET_PACKAGE_BREADTH_CM",
+    "SHIPROCKET_PACKAGE_HEIGHT_CM",
+  ];
+  for (const key of positiveKeys) {
+    const value = Number(envV2(key));
+    if (!Number.isSafeInteger(value) || value <= 0) missing.push("valid " + key);
+  }
+  const packageWeight = Number(envV2("SHIPROCKET_PACKAGING_WEIGHT_GRAMS"));
+  if (!Number.isFinite(packageWeight) || packageWeight < 0) missing.push("valid SHIPROCKET_PACKAGING_WEIGHT_GRAMS");
+  return { configured: missing.length === 0, missing: [...new Set(missing)] };
+}
+
+export async function getShiprocketServiceabilityQuote(input: {
+  deliveryPostcode: string;
+  itemWeightGrams: number;
+  declaredValuePaise: number;
+}): Promise<ShiprocketServiceabilityQuote | null> {
+  const setup = shiprocketServiceabilitySetup();
+  if (!setup.configured) return null;
+  if (!/^[1-9][0-9]{5}$/.test(input.deliveryPostcode) ||
+      !Number.isSafeInteger(input.itemWeightGrams) || input.itemWeightGrams <= 0 ||
+      !Number.isSafeInteger(input.declaredValuePaise) || input.declaredValuePaise < 0) {
+    throw new Error("A valid destination PIN, parcel weight and declared value are required for a Shiprocket quote.");
+  }
+
+  const packagingWeight = Number(envV2("SHIPROCKET_PACKAGING_WEIGHT_GRAMS"));
+  const grossWeightKg = Number(((input.itemWeightGrams + packagingWeight) / 1000).toFixed(3));
+  const length = Number(envV2("SHIPROCKET_PACKAGE_LENGTH_CM"));
+  const breadth = Number(envV2("SHIPROCKET_PACKAGE_BREADTH_CM"));
+  const height = Number(envV2("SHIPROCKET_PACKAGE_HEIGHT_CM"));
+  if (!(grossWeightKg > 0)) throw new Error("Shiprocket parcel weight must be greater than zero.");
+
+  const token = await tokenV2();
+  const query = new URLSearchParams({
+    pickup_postcode: envV2("SHIPROCKET_PICKUP_POSTCODE"),
+    delivery_postcode: input.deliveryPostcode,
+    cod: "0",
+    weight: String(grossWeightKg),
+    length: String(length),
+    breadth: String(breadth),
+    height: String(height),
+    declared_value: String(Math.round(input.declaredValuePaise / 100)),
+  });
+  const response = await fetch("https://apiv2.shiprocket.in/v1/external/courier/serviceability/?" + query.toString(), {
+    method: "GET",
+    headers: { authorization: "Bearer " + token, "content-type": "application/json" },
+    cache: "no-store",
+  });
+  const payload = await response.json().catch(() => ({})) as {
+    message?: string;
+    data?: {
+      available_courier_companies?: Array<{
+        courier_name?: string;
+        courier_company_id?: number;
+        rate?: number | string;
+        freight_charge?: number | string;
+        estimated_delivery_days?: number | string;
+        rating?: number | string;
+        blocked?: number | boolean;
+      }>;
+      recommended_courier_company_id?: number;
+      shiprocket_recommended_courier_id?: number;
+    };
+  };
+  if (!response.ok) throw new Error(payload.message || "Shiprocket could not check courier serviceability.");
+  const couriers = Array.isArray(payload.data?.available_courier_companies)
+    ? payload.data!.available_courier_companies!.filter((courier) => courier.blocked !== 1 && courier.blocked !== true)
+    : [];
+  if (!couriers.length) {
+    return {
+      configured: true,
+      serviceable: false,
+      source: "shiprocket",
+      message: "Shiprocket has no available courier service for this PIN code and parcel.",
+    };
+  }
+
+  const recommendedId = Number(payload.data?.recommended_courier_company_id ?? payload.data?.shiprocket_recommended_courier_id ?? 0);
+  const recommended = couriers.find((courier) => Number(courier.courier_company_id) === recommendedId);
+  const withRates = couriers.map((courier) => ({
+    courier,
+    rate: Number(courier.rate ?? courier.freight_charge),
+  })).filter((entry) => Number.isFinite(entry.rate) && entry.rate >= 0);
+  const selected = recommended && Number.isFinite(Number(recommended.rate ?? recommended.freight_charge))
+    ? { courier: recommended, rate: Number(recommended.rate ?? recommended.freight_charge) }
+    : withRates.sort((a, b) => a.rate - b.rate)[0];
+  if (!selected) {
+    return {
+      configured: true,
+      serviceable: false,
+      source: "shiprocket",
+      message: "Shiprocket returned courier options without a usable rate. Please contact the store.",
+    };
+  }
+  const daysValue = Number(selected.courier.estimated_delivery_days);
+  const deliveryDays = Number.isFinite(daysValue) && daysValue > 0 ? Math.ceil(daysValue) : null;
+  return {
+    configured: true,
+    serviceable: true,
+    source: "shiprocket",
+    courierName: String(selected.courier.courier_name ?? "Shiprocket courier"),
+    courierCompanyId: Number(selected.courier.courier_company_id) || undefined,
+    shippingFeePaise: Math.round(selected.rate * 100),
+    ...(deliveryDays ? { deliveryMinDays: deliveryDays, deliveryMaxDays: deliveryDays } : {}),
+    message: "Live courier availability and rate returned by Shiprocket.",
+  };
+}
+
 export async function createShiprocketDraft(orderId: string) {
   const db = adminDb();
   const orderRef = db.collection("orders").doc(orderId);

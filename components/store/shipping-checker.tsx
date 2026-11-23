@@ -6,6 +6,8 @@ type ShippingQuote = {
   configured: boolean;
   serviceable: boolean;
   message: string;
+  source?: "shiprocket";
+  courierName?: string;
   zoneName?: string;
   shippingFeePaise?: number;
   freeShippingApplied?: boolean;
@@ -17,7 +19,7 @@ function money(paise: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(paise / 100);
 }
 
-export function ShippingChecker({ subtotalPaise = 0 }: { subtotalPaise?: number }) {
+export function ShippingChecker({ subtotalPaise = 0, weightGrams = 0 }: { subtotalPaise?: number; weightGrams?: number }) {
   const [pincode, setPincode] = useState("");
   const [quote, setQuote] = useState<ShippingQuote | null>(null);
   const [busy, setBusy] = useState(false);
@@ -35,7 +37,7 @@ export function ShippingChecker({ subtotalPaise = 0 }: { subtotalPaise?: number 
     setQuote(null);
     try {
       const response = await fetch(
-        `/api/store/shipping?pincode=${encodeURIComponent(pincode)}&subtotalPaise=${Math.max(0, Math.round(subtotalPaise))}`,
+        `/api/store/shipping?pincode=${encodeURIComponent(pincode)}&subtotalPaise=${Math.max(0, Math.round(subtotalPaise))}${weightGrams > 0 ? `&weightGrams=${Math.round(weightGrams)}` : ""}`,
         { cache: "no-store" },
       );
       const data = await response.json().catch(() => ({})) as ShippingQuote & { error?: string };
@@ -83,14 +85,18 @@ export function ShippingChecker({ subtotalPaise = 0 }: { subtotalPaise?: number 
           <strong>{quote.message}</strong>
           {quote.serviceable && (
             <div className="shipping-quote-details">
-              <span>Delivery zone <b>{quote.zoneName}</b></span>
+              <span>{quote.source === "shiprocket" ? "Courier" : "Delivery zone"} <b>{quote.courierName || quote.zoneName || "Configured zone"}</b></span>
               <span>Shipping fee <b>{quote.freeShippingApplied ? "FREE" : money(quote.shippingFeePaise ?? 0)}</b></span>
               <span>Estimated delivery <b>{quote.deliveryMinDays}–{quote.deliveryMaxDays} days</b></span>
             </div>
           )}
         </div>
       )}
-      <small className="shipping-checker-footnote">Use the PIN from your delivery address. Availability and estimates use the store’s manually configured delivery zones, not a live courier lookup. Product pages estimate one pack; the bag checker uses the full bag subtotal. { "The saved-address PIN and final shipping fee are recalculated by the server at checkout." }</small>
+      <small className="shipping-checker-footnote">
+        {quote?.source === "shiprocket"
+          ? "This quote was returned live by Shiprocket for the entered PIN and estimated parcel weight. Final courier selection and charges are checked again before dispatch."
+          : "Availability and estimates use the store’s configured delivery zones unless live Shiprocket credentials, pickup PIN and parcel dimensions are configured. Product pages estimate one pack; the bag checker uses the full bag weight. Final shipping is recalculated by the server at checkout."}
+      </small>
     </section>
   );
 }

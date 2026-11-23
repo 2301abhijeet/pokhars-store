@@ -6,6 +6,7 @@ export type Product = {
   category: "Classic" | "Masala" | "Fresh" | "Cheesy" | "Premium";
   price: number;
   weight: string;
+  weightGrams?: number;
   note: string;
   accent: string;
   ink: string;
@@ -38,6 +39,7 @@ export const products: Product[] = [
     category: "Classic",
     price: 180,
     weight: "83 g",
+    weightGrams: 83,
     note: "For the days when simple just hits right.",
     accent: "#0b694f",
     ink: "#07543f",
@@ -53,6 +55,7 @@ export const products: Product[] = [
     category: "Masala",
     price: 180,
     weight: "83 g",
+    weightGrams: 83,
     note: "A little masala. A whole lot of masti.",
     accent: "#a92725",
     ink: "#85201f",
@@ -68,6 +71,7 @@ export const products: Product[] = [
     category: "Fresh",
     price: 180,
     weight: "83 g",
+    weightGrams: 83,
     note: "A fresh little break from the usual.",
     accent: "#2e7955",
     ink: "#1d6041",
@@ -82,6 +86,7 @@ export const products: Product[] = [
     category: "Cheesy",
     price: 180,
     weight: "83 g",
+    weightGrams: 83,
     note: "A cosy, cheesy kind of snack break.",
     accent: "#e4b52c",
     ink: "#946b13",
@@ -96,6 +101,7 @@ export const products: Product[] = [
     category: "Masala",
     price: 180,
     weight: "83 g",
+    weightGrams: 83,
     note: "Bringing the fire to your snack time.",
     accent: "#f05a32",
     ink: "#b83e24",
@@ -111,6 +117,7 @@ export const products: Product[] = [
     category: "Premium",
     price: 180,
     weight: "83 g",
+    weightGrams: 83,
     note: "A little kick. A lot of crunch.",
     accent: "#e98cab",
     ink: "#a54d70",

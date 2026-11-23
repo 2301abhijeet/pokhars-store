@@ -245,7 +245,7 @@ export default function ProductDetailPage() {
               <span>{product.weight}</span><span>{product.category}</span>{product.sku && <span>SKU · {product.sku}</span>}
             </div>
 
-            <ShippingChecker subtotalPaise={Math.round(product.price * 100)} />
+            <ShippingChecker subtotalPaise={Math.round(product.price * 100)} weightGrams={Number(product.weightGrams) || 0} />
             <button className="product-detail-add" type="button" disabled={!cartReady || adding || cartQuantity >= 20} onClick={() => void addToBag()}>
               {adding ? "ADDING…" : cartQuantity >= 20 ? "MAXIMUM QUANTITY ADDED" : isDemoCatalogueMode ? "ADD TO DEMO BAG" : "ADD TO YOUR BAG"} <b>↗</b>
             </button>

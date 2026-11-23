@@ -258,6 +258,10 @@ export default function HomePage() {
     (sum, product) => sum + product.price * (cart[product.id] ?? 0),
     0,
   );
+  const cartWeightGrams = cartItems.reduce(
+    (sum, product) => sum + (Number(product.weightGrams) || 0) * (cart[product.id] ?? 0),
+    0,
+  );
   const subtotalPaise = Math.round(subtotal * 100);
   const couponDiscountPaise = appliedCoupon?.discountPaise ?? 0;
   const cartTotalPaise = Math.max(0, subtotalPaise - couponDiscountPaise);
@@ -827,7 +831,7 @@ export default function HomePage() {
                       <span>Use Razorpay Test Mode to simulate payment for sample products. No real money is taken, no parcel is shipped and sample stock is never changed.</span>
                     </div>
                   ) : (
-                    <ShippingChecker subtotalPaise={Math.round(subtotal * 100)} />
+                    <ShippingChecker subtotalPaise={Math.round(subtotal * 100)} weightGrams={cartWeightGrams} />
                   )}
                   {!user ? (
                     <div className="checkout-notice">Sign in to choose a saved address/contact before test checkout. No real payment will be taken.</div>

@@ -64,6 +64,7 @@ function mapProduct(id: string, data: Record<string, unknown>): Product | null {
     category,
     price: Math.round(pricePaise) / 100,
     weight: `${grams} g`,
+    weightGrams: grams,
     note: description,
     accent: typeof data.accent === "string" ? data.accent : defaults.accent,
     ink: typeof data.ink === "string" ? data.ink : defaults.ink,
