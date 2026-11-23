@@ -57,6 +57,7 @@ export async function GET(request: Request) {
         status: String(data.status ?? "pending_payment"),
         paymentStatus: String(data.paymentStatus ?? "created"),
         paymentMode: data.paymentMode === "test" ? "test" : "live",
+        demoOrder: data.demoOrder === true,
         subtotalPaise: Number(data.subtotalPaise) || 0,
         shippingPaise: Number(data.shippingPaise) || 0,
         shippingZoneName: typeof data.shippingZoneName === "string" ? data.shippingZoneName : null,

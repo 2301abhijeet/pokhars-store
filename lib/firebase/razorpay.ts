@@ -17,16 +17,22 @@ export function checkoutConfig() {
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET ?? "";
   const allowProductionTestCheckout = process.env.VERCEL_ENV !== "production" ||
     process.env.RAZORPAY_ALLOW_PRODUCTION_TEST_CHECKOUT === "true";
+  const demoMode = process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "true";
+  const demoCheckoutAllowed = process.env.RAZORPAY_ALLOW_DEMO_CATALOGUE_TEST_CHECKOUT === "true";
+  const demoCheckout = demoMode && demoCheckoutAllowed;
   const shippingPaise = Number(process.env.CHECKOUT_TEST_SHIPPING_PAISE ?? "0");
   const validShippingPaise = Number.isSafeInteger(shippingPaise) && shippingPaise >= 0;
-  const enabled = process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE !== "true" &&
+  const enabled = (!demoMode || demoCheckoutAllowed) &&
     allowProductionTestCheckout &&
     process.env.RAZORPAY_MODE === "test" &&
     keyId.startsWith("rzp_test_") &&
     Boolean(keySecret) &&
+    Boolean(webhookSecret) &&
     validShippingPaise;
   return {
     enabled,
+    demoMode,
+    demoCheckout: enabled && demoCheckout,
     keyId: enabled ? keyId : "",
     keySecret: enabled ? keySecret : "",
     webhookSecret,
@@ -113,7 +119,9 @@ export async function markOrderPaid(orderRef: DocumentReference<DocumentData>, p
       status: "confirmed",
       statusHistory: FieldValue.arrayUnion({
         status: "confirmed",
-        note: "Payment confirmed. Your order is now confirmed.",
+        note: order.demoOrder === true
+          ? "Demo test payment captured. This sample order will not be packed or dispatched."
+          : "Payment confirmed. Your order is now confirmed.",
         occurredAt: new Date().toISOString(),
       }),
       paymentStatus: "paid",

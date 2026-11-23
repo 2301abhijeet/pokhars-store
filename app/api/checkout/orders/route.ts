@@ -15,13 +15,11 @@ function validRequestId(value: unknown): value is string {
 }
 
 export async function POST(request: Request) {
-  if (process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "true") {
-    return jsonError("POKHAR'S is currently in demo mode. Sample products are for website testing only; checkout and payments are disabled.", 503);
-  }
   const user = await verifySignedInUser(request);
   if (!user) return jsonError("Sign in before checkout.", 401);
   const config = checkoutConfig();
   if (!config.enabled) return jsonError("Test checkout is not configured yet. Live payments are disabled.", 503);
+  const demoCheckout = config.demoCheckout;
 
   let body: unknown;
   try { body = await request.json(); } catch { return jsonError("Invalid checkout request.", 400); }
@@ -58,6 +56,7 @@ export async function POST(request: Request) {
         amount: order.data()?.totalPaise,
         currency: "INR",
         keyId: config.keyId,
+        demoOrder: order.data()?.demoOrder === true,
       });
     }
   }
@@ -75,23 +74,24 @@ export async function POST(request: Request) {
     shippingAddress: Record<string, string>;
     shippingPaise: number;
     shippingZoneName: string;
-    deliveryMinDays: number;
-    deliveryMaxDays: number;
+    deliveryMinDays: number | null;
+    deliveryMaxDays: number | null;
   };
 
   try {
     prepared = await db.runTransaction(async (transaction) => {
-      const [requestSnapshot, addressSnapshot, shippingSettingsSnapshot, ...productSnapshots] = await Promise.all([
+      const [requestSnapshot, addressSnapshot] = await Promise.all([
         transaction.get(checkoutRequestRef),
         transaction.get(addressRef),
-        transaction.get(shippingSettingsRef),
-        ...productRefs.map((ref) => transaction.get(ref)),
       ]);
+      const productSnapshots = await Promise.all(productRefs.map((ref) => transaction.get(ref)));
+      const shippingSettingsSnapshot = demoCheckout ? null : await transaction.get(shippingSettingsRef);
       if (requestSnapshot.exists) throw new Error("CHECKOUT_REQUEST_EXISTS");
       if (!addressSnapshot.exists) throw new Error("ADDRESS_NOT_FOUND");
-      if (!shippingSettingsSnapshot.exists) throw new Error("SHIPPING_NOT_CONFIGURED");
-      const shippingValidation = validateShippingSettings(shippingSettingsSnapshot.data());
-      if (!shippingValidation.settings) throw new Error("SHIPPING_NOT_CONFIGURED");
+      const shippingValidation = demoCheckout || !shippingSettingsSnapshot
+        ? null
+        : validateShippingSettings(shippingSettingsSnapshot.data());
+      if (!demoCheckout && !shippingValidation?.settings) throw new Error("SHIPPING_NOT_CONFIGURED");
       const address = addressSnapshot.data()!;
       if (typeof address.recipientName !== "string" || typeof address.phone !== "string" || typeof address.line1 !== "string" ||
           typeof address.city !== "string" || typeof address.state !== "string" || typeof address.pincode !== "string") throw new Error("ADDRESS_INVALID");
@@ -117,7 +117,9 @@ export async function POST(request: Request) {
         const hasVerifiedPublishDetails = publishFields.every((field) => !isPlaceholderProductValue(data[field]))
           && data.packImageVerified === true
           && isValidFssaiNumber(data.fssaiLicenseNumber);
-        if (data.isActive !== true || data.visibility !== "published" || !hasVerifiedPublishDetails) throw new Error("PRODUCT_UNAVAILABLE");
+        if (data.isActive !== true || data.visibility !== "published" || (!demoCheckout && !hasVerifiedPublishDetails)) {
+          throw new Error("PRODUCT_UNAVAILABLE");
+        }
         if (!Number.isSafeInteger(price) || price < 1 || !Number.isSafeInteger(stock) || stock < item.quantity) throw new Error("INSUFFICIENT_STOCK");
         const lineTotal = price * item.quantity;
         if (!Number.isSafeInteger(lineTotal)) throw new Error("TOTAL_INVALID");
@@ -132,10 +134,21 @@ export async function POST(request: Request) {
         quantity: item.quantity,
         lineTotalPaise: item.lineTotalPaise,
       }));
-      const shippingQuote = quoteShipping(shippingValidation.settings, shippingAddress.pincode, subtotal);
-      if (!shippingQuote.configured) throw new Error("SHIPPING_NOT_CONFIGURED");
-      if (!shippingQuote.serviceable) throw new Error("PINCODE_NOT_SERVICEABLE");
-      const shippingPaise = shippingQuote.shippingFeePaise;
+      let shippingPaise = 0;
+      let shippingZoneName = "DEMO TEST ONLY — NO DELIVERY";
+      let deliveryMinDays: number | null = null;
+      let deliveryMaxDays: number | null = null;
+      if (!demoCheckout) {
+        const settings = shippingValidation?.settings;
+        if (!settings) throw new Error("SHIPPING_NOT_CONFIGURED");
+        const shippingQuote = quoteShipping(settings, shippingAddress.pincode, subtotal);
+        if (!shippingQuote.configured) throw new Error("SHIPPING_NOT_CONFIGURED");
+        if (!shippingQuote.serviceable) throw new Error("PINCODE_NOT_SERVICEABLE");
+        shippingPaise = shippingQuote.shippingFeePaise;
+        shippingZoneName = shippingQuote.zoneName;
+        deliveryMinDays = shippingQuote.deliveryMinDays;
+        deliveryMaxDays = shippingQuote.deliveryMaxDays;
+      }
       const totalPaise = subtotal + shippingPaise;
       if (!Number.isSafeInteger(totalPaise) || totalPaise > 100_000_000) throw new Error("TOTAL_INVALID");
       const expiresAt = Timestamp.fromMillis(Date.now() + 30 * 60 * 1000);
@@ -146,23 +159,28 @@ export async function POST(request: Request) {
         items: orderItems,
         subtotalPaise: subtotal,
         shippingPaise,
-        shippingZoneName: shippingQuote.zoneName,
-        deliveryMinDays: shippingQuote.deliveryMinDays,
-        deliveryMaxDays: shippingQuote.deliveryMaxDays,
+        shippingZoneName,
+        deliveryMinDays,
+        deliveryMaxDays,
         discountPaise: 0,
         totalPaise,
         status: "pending_payment",
         statusHistory: [{
           status: "pending_payment",
-          note: "Order created. Waiting for payment confirmation.",
+          note: demoCheckout
+            ? "Demo test order created. It will not be packed or dispatched."
+            : "Order created. Waiting for payment confirmation.",
           occurredAt: new Date().toISOString(),
         }],
         paymentStatus: "created",
         paymentMode: "test",
+        demoOrder: demoCheckout,
+        orderType: demoCheckout ? "demo_test" : "test",
+        fulfilmentEligible: false,
         // Test purchases never consume or reserve real storefront inventory.
         stockReserved: false,
         reservationExpiresAt: expiresAt,
-        shippingAddress,
+        shippingAddress: demoCheckout ? {} : shippingAddress,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
@@ -175,8 +193,8 @@ export async function POST(request: Request) {
       });
       return {
         subtotalPaise: subtotal, totalPaise, orderItems, shippingAddress,
-        shippingPaise, shippingZoneName: shippingQuote.zoneName,
-        deliveryMinDays: shippingQuote.deliveryMinDays, deliveryMaxDays: shippingQuote.deliveryMaxDays,
+        shippingPaise, shippingZoneName,
+        deliveryMinDays, deliveryMaxDays,
       };
     });
   } catch (cause) {
@@ -204,7 +222,13 @@ export async function POST(request: Request) {
         amount: totalPaise,
         currency: "INR",
         receipt: orderNumber,
-        notes: { store_order_id: orderRef.id, order_number: orderNumber, payment_mode: "test" },
+        notes: {
+          store_order_id: orderRef.id,
+          order_number: orderNumber,
+          payment_mode: "test",
+          demo_catalogue: demoCheckout ? "true" : "false",
+          fulfilment: "disabled",
+        },
       }),
     });
     if (razorpayOrder.amount !== totalPaise || razorpayOrder.currency !== "INR") throw new Error("Razorpay returned an unexpected amount.");
@@ -225,10 +249,11 @@ export async function POST(request: Request) {
     shippingZoneName: prepared.shippingZoneName,
     deliveryMinDays: prepared.deliveryMinDays,
     deliveryMaxDays: prepared.deliveryMaxDays,
+    demoOrder: demoCheckout,
   }, { status: 201 });
   } catch {
     await releaseReservation(orderRef, { status: "failed", reason: "Payment service could not create a test order." }).catch(() => undefined);
     await checkoutRequestRef.update({ state: "failed", updatedAt: FieldValue.serverTimestamp() }).catch(() => undefined);
-    return jsonError("The test payment service could not create your order. Your stock has been released; please try again.", 502);
+    return jsonError("The test payment service could not create your order. No inventory was deducted; please try again.", 502);
   }
 }

@@ -14,6 +14,7 @@ type AccountOrder = {
   status: string;
   paymentStatus: string;
   paymentMode: "test" | "live";
+  demoOrder: boolean;
   subtotalPaise: number;
   shippingPaise: number;
   shippingZoneName: string | null;
@@ -139,8 +140,8 @@ export default function AccountPage() {
 
             {isDemoCatalogueMode && (
               <div className="demo-store-banner customer-account-demo" role="note">
-                <strong>DEVELOPMENT STORE · CHECKOUT DISABLED</strong>
-                <span>Sample products are for website testing only. No customer orders or payments can be placed while demo mode is active.</span>
+                <strong>DEMO STORE · TEST PAYMENTS ONLY</strong>
+                <span>Sample products can be used for Razorpay Test Mode simulations only. Demo orders are not dispatched, do not reduce stock and are excluded from live sales.</span>
               </div>
             )}
 
@@ -165,10 +166,16 @@ export default function AccountPage() {
                   <article className="customer-order-card" key={order.id}>
                     <div className="customer-order-top">
                       <div><p className="customer-order-kicker">ORDER NUMBER</p><h3>{order.orderNumber}</h3><span>{dateLabel(order.createdAt)}</span></div>
-                      <div className="customer-order-status"><span className={"customer-order-status-dot status-" + order.status} />{statusLabel(order.status)}</div>
+                      <div className="customer-order-status"><span className={"customer-order-status-dot status-" + order.status} />{order.demoOrder ? (order.paymentStatus === "paid" ? "Demo payment complete" : statusLabel(order.status)) : statusLabel(order.status)}</div>
                     </div>
+                    {order.demoOrder && (
+                      <div className="demo-store-banner customer-account-demo" role="note">
+                        <strong>DEMO TEST ORDER · NOT FOR DELIVERY</strong>
+                        <span>This payment is a test simulation only. No physical product will be packed or shipped.</span>
+                      </div>
+                    )}
                     <section className="customer-tracking">
-                      <div className="customer-tracking-head"><span>DELIVERY PROGRESS</span><strong>{statusLabel(order.status)}</strong></div>
+                      <div className="customer-tracking-head"><span>{order.demoOrder ? "TEST PAYMENT RECORD" : "DELIVERY PROGRESS"}</span><strong>{order.demoOrder && order.paymentStatus === "paid" ? "Test payment captured" : statusLabel(order.status)}</strong></div>
                       {order.status === "cancelled" || order.status === "refunded" || order.status === "expired" ? (
                         <p className="customer-tracking-note">This order is {statusLabel(order.status).toLowerCase()}.</p>
                       ) : (
@@ -214,7 +221,7 @@ export default function AccountPage() {
                       ))}
                     </div>
                     <div className="customer-order-bottom">
-                      <span>{order.paymentMode === "test" ? "TEST PAYMENT" : order.paymentStatus.toUpperCase()}</span>
+                      <span>{order.demoOrder ? "DEMO TEST PAYMENT · NO DELIVERY" : order.paymentMode === "test" ? "TEST PAYMENT" : order.paymentStatus.toUpperCase()}</span>
                       <strong>{money(order.totalPaise)}</strong>
                     </div>
                   </article>

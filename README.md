@@ -54,14 +54,18 @@ Google is enabled as a sign-in provider. `localhost` and `pokhars-store.vercel.a
 
 ## Development catalogue mode
 
-Keep `NEXT_PUBLIC_CATALOGUE_DEMO_MODE=true` while the site uses sample product names, prices, pack photos or placeholder food-label details. In this mode:
-- Active/published sample products remain visible in the storefront and product detail pages.
-- The storefront and admin clearly mark the catalogue as **DEMO · NOT FOR SALE**.
-- Admin can save and publish sample data without the production food-label checks.
-- Cart interactions are available for UI testing, but the checkout API and Razorpay test-payment configuration are disabled server-side.
-- No sample product may be used to create a customer order or payment.
+Keep `NEXT_PUBLIC_CATALOGUE_DEMO_MODE=true` while the site uses sample product names, prices, pack photos or placeholder food-label details. Active/published sample products remain visible and are clearly marked **DEMO · NOT FOR SALE**. Admin may edit them for website development.
 
-Before launch, replace every sample field/image with final approved product information, verify the actual pack photo and FSSAI details, then set `NEXT_PUBLIC_CATALOGUE_DEMO_MODE=false` (or remove it) in Vercel and redeploy. Strict publication checks automatically resume. Never use demo mode to accept customer orders.
+A separate, explicit `RAZORPAY_ALLOW_DEMO_CATALOGUE_TEST_CHECKOUT=true` switch may be used to test the payment flow with Razorpay Test Mode. This path:
+- accepts only server-side product IDs, prices and quantities from the demo catalogue;
+- creates orders tagged `demoOrder: true`, `orderType: "demo_test"` and `paymentMode: "test"`;
+- skips courier/PIN-code shipping configuration and adds no delivery charge;
+- does not reserve or decrement product stock;
+- labels the order as **DEMO TEST ORDER · NOT FOR DELIVERY** in customer history;
+- is permanently blocked from the admin fulfilment workflow and excluded from live sales;
+- continues to require a signed-in customer, a saved contact/address, valid `rzp_test_` credentials, a webhook secret and server-side payment verification.
+
+This is only a Razorpay Test Mode simulation. It does not accept a live customer order, arrange delivery, or charge real money. Keep the demo checkout flag false unless you are actively running a test. Before live launch, replace all demo content with verified retail product information, confirm the pack photo, ingredients, allergen/nutrition declarations, manufacturer details and FSSAI licence, configure real shipping zones, and remove the demo mode. Do not use sample catalogue data for actual sales.
 
 ## Shipping and delivery configuration
 
@@ -69,7 +73,7 @@ Shipping rules are stored in the server-managed Firestore document `settings/shi
 
 The public `/api/store/shipping` endpoint returns a quote for a submitted PIN code and cart subtotal. It exposes the quote, not the complete list of serviceable PIN codes. This is a manual store configuration, not a live courier API; verify coverage with the selected delivery partner before enabling zones. The product page quote uses one pack's price; the bag checker uses the complete bag subtotal. The checkout endpoint independently reads the selected saved-address PIN code and recalculates the fee inside its Firestore transaction. Orders store the fee, zone name and delivery estimate as order snapshots.
 
-The `/shipping-policy` page explains the checker and current configured handling note. Keep shipping disabled until actual zones, costs and time ranges have been confirmed. Demo mode still blocks all order creation and payments.
+The `/shipping-policy` page explains the checker and current configured handling note. Keep shipping disabled until actual zones, costs and time ranges have been confirmed. The explicit demo test-checkout path skips shipping and never dispatches an order; normal catalogue checkout still requires verified shipping configuration.
 
 ## Security principles
 
@@ -117,9 +121,9 @@ Checkout is deliberately **test-only**. The server requires `RAZORPAY_MODE=test`
 
 ### Before enabling checkout
 
-The website currently has `NEXT_PUBLIC_CATALOGUE_DEMO_MODE=true`. Keep it on while sample product content or packaging is being used: this intentionally blocks every order/payment endpoint and shows the customer a demo-only catalogue. To accept even a **test** order, first replace the demo catalogue with actual retail products and verify each product's actual pack photo, ingredients, allergen information, nutrition, manufacturer name/address, pack image verification and FSSAI licence. The checkout API rejects products without those verified publishing fields.
+The production website may keep `NEXT_PUBLIC_CATALOGUE_DEMO_MODE=true` for a **demo test purchase** only when the owner intentionally sets `RAZORPAY_ALLOW_DEMO_CATALOGUE_TEST_CHECKOUT=true` in Vercel Production. This flag does not relax the Test Mode checks: `RAZORPAY_MODE=test`, an `rzp_test_` Key ID, the matching secret and a webhook secret are required. Demo orders are explicitly marked and cannot be shipped or counted as sales. No actual shipping zones or food-label claims are used in this demo path. A saved customer address/contact is still required for checkout prefill.
 
-Also configure the real delivery PIN-code zones, confirmed courier fees and delivery estimates under **Admin → Shipping**. Shipping is disabled until those details have been saved and enabled. Add a saved customer delivery address under `/account/addresses`. Checkout validates the saved address PIN code against the configured shipping zones.
+For normal customer orders, first replace the demo catalogue with verified retail products and confirm each product's actual pack photo, ingredients, allergen information, nutrition, manufacturer name/address, pack image verification and FSSAI licence. Then configure real delivery PIN-code zones, courier fees and delivery estimates under **Admin → Shipping**. Normal catalogue checkout continues to validate the selected saved-address PIN code against the configured shipping zones.
 
 ### Enable test checkout on Preview (recommended first)
 
@@ -139,6 +143,7 @@ Also configure the real delivery PIN-code zones, confirmed courier fees and deli
 Only after all real product and shipping information is verified, you can run a test checkout on `https://pokhars-store.vercel.app`. Set the following variables in the Vercel **Production** environment only:
 
 - `NEXT_PUBLIC_CATALOGUE_DEMO_MODE=false` — only after replacing and verifying every demo product.
+- `RAZORPAY_ALLOW_DEMO_CATALOGUE_TEST_CHECKOUT` should remain false for the normal retail path.
 - `RAZORPAY_MODE=test`
 - `RAZORPAY_ALLOW_PRODUCTION_TEST_CHECKOUT=true`
 - `RAZORPAY_KEY_ID` — the `rzp_test_` Key ID from Razorpay Test Mode.
@@ -148,7 +153,7 @@ Only after all real product and shipping information is verified, you can run a 
 
 Keep the existing Production Firebase Admin credentials; test orders will be saved in the production Firestore database and will be visible as test orders in customer/admin order history. They are not live sales, cannot enter fulfilment, and do not decrement product stock. For this reason, test on Preview/staging first. Configure the Razorpay Test Mode webhook to `https://pokhars-store.vercel.app/api/payments/razorpay/webhook` if using the production website for the test. Redeploy after changing variables.
 
-Never put Razorpay secrets in `NEXT_PUBLIC_*` variables, GitHub or chat. Keep `RAZORPAY_ALLOW_PRODUCTION_TEST_CHECKOUT=false` unless an owner intentionally wants a test-only checkout on Production. Even when this switch is true, the server will still only accept `rzp_test_` keys and `RAZORPAY_MODE=test`; live keys cannot pass the guard. The Demo Catalogue gate and server-side verified-product/shipping checks remain mandatory. Taxes are not included unless a separate tax policy is implemented. Refunds, coupon redemption and live payment settlement remain out of scope. Orders are written only through server-side Admin SDK routes; Firestore client writes remain denied. No Firestore rules or indexes were changed for checkout.
+Never put Razorpay secrets in `NEXT_PUBLIC_*` variables, GitHub or chat. Keep `RAZORPAY_ALLOW_PRODUCTION_TEST_CHECKOUT=false` unless an owner intentionally wants a test-only checkout on Production. Even when this switch is true, the server will still only accept `rzp_test_` keys and `RAZORPAY_MODE=test`; live keys cannot pass the guard. The Demo Catalogue gate remains on for sample products, but the extra demo-checkout switch allows only non-delivery Test Mode orders. Normal catalogue orders remain subject to server-side verified-product and shipping checks. Taxes are not included unless a separate tax policy is implemented. Refunds, coupon redemption and live payment settlement remain out of scope. Orders are written only through server-side Admin SDK routes; Firestore client writes remain denied. No Firestore rules or indexes were changed for checkout.
 
 ### Rules and indexes review
 

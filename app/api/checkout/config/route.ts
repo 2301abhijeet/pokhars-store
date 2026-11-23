@@ -10,6 +10,7 @@ export async function GET() {
     keyId: config.keyId,
     shippingPaise: config.shippingPaise,
     livePaymentsEnabled: false,
-    demoMode: process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "true",
+    demoMode: config.demoMode,
+    demoCheckout: config.demoCheckout,
   }, { headers: { "cache-control": "no-store" } });
 }

@@ -20,7 +20,7 @@ const isDemoCatalogueMode = process.env.NEXT_PUBLIC_CATALOGUE_DEMO_MODE === "tru
 
 type Filter = "All" | "Classic" | "Masala" | "Fresh" | "Cheesy" | "Premium";
 type Cart = CartQuantities;
-type CheckoutConfig = { enabled: boolean; mode: "test" | null; keyId: string; shippingPaise: number; livePaymentsEnabled: false };
+type CheckoutConfig = { enabled: boolean; mode: "test" | null; keyId: string; shippingPaise: number; livePaymentsEnabled: false; demoMode: boolean; demoCheckout: boolean };
 type RazorpayPaymentResponse = { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string };
 type PendingPayment = { orderId: string; response: RazorpayPaymentResponse };
 type RazorpayOptions = {
@@ -303,7 +303,9 @@ export default function HomePage() {
     const payload = await result.json().catch(() => ({})) as { status?: string; message?: string; orderNumber?: string; error?: string };
     if (payload.status === "paid") {
       setPendingPayment(null);
-      setCheckoutMessage(`Test payment confirmed for ${payload.orderNumber || "your order"}. No real payment was taken.`);
+      setCheckoutMessage(checkoutConfig?.demoCheckout
+        ? `Demo test payment confirmed for ${payload.orderNumber || "your order"}. No real money was taken and no product will be shipped.`
+        : `Test payment confirmed for ${payload.orderNumber || "your order"}. No real payment was taken.`);
       setCheckoutError(null);
       commitCartChange({});
       return;
@@ -363,14 +365,14 @@ export default function HomePage() {
       }
       const loaded = await loadRazorpayCheckout();
       const razorpayWindow = window as typeof window & { Razorpay?: new (options: RazorpayOptions) => RazorpayInstance };
-      if (!loaded || !razorpayWindow.Razorpay) throw new Error("The test payment window could not be loaded. Your reserved stock will be released automatically after 30 minutes.");
+      if (!loaded || !razorpayWindow.Razorpay) throw new Error("The test payment window could not be loaded. Your unpaid test order will expire automatically after 30 minutes.");
       const address = savedAddresses.find((item) => item.id === selectedAddressId)!;
       const checkout = new razorpayWindow.Razorpay({
         key: order.keyId,
         amount: order.amount,
         currency: order.currency || "INR",
         name: "POKHAR'S",
-        description: "Test checkout · no real charge",
+        description: checkoutConfig.demoCheckout ? "DEMO TEST ORDER · no delivery" : "Test checkout · no real charge",
         order_id: order.razorpayOrderId,
         prefill: { name: address.recipientName, email: user.email || "", contact: address.phone },
         theme: { color: "#ffd45a" },
@@ -379,7 +381,7 @@ export default function HomePage() {
           try { await verifyPayment(order.orderId!, response); }
           catch (cause) { setCheckoutError(cause instanceof Error ? cause.message : "Payment verification is pending."); }
         },
-        modal: { ondismiss: () => setCheckoutMessage("The payment window closed. Any unpaid stock reservation will expire automatically.") },
+        modal: { ondismiss: () => setCheckoutMessage("The payment window closed. Any unpaid test order will expire automatically.") },
       });
       checkout.on("payment.failed", (event) => {
         setCheckoutError(event.error?.description || "The test payment did not complete. You can try again.");
@@ -715,22 +717,24 @@ export default function HomePage() {
                         ? (cloudCartReady ? "✓ Cart synced to your account" : "Syncing your cart…")
                         : "Cart saved on this device"}
                   </p>
-                  <div><span>{isDemoCatalogueMode ? "Demo subtotal · sample only" : "Subtotal"}</span><strong>{formatPrice(subtotal)}</strong></div>
-                  <ShippingChecker subtotalPaise={Math.round(subtotal * 100)} />
-{isDemoCatalogueMode ? (
+                  <div><span>{isDemoCatalogueMode ? "Demo test subtotal · sample only" : "Subtotal"}</span><strong>{formatPrice(subtotal)}</strong></div>
+                  {isDemoCatalogueMode ? (
                     <div className="checkout-notice demo-checkout-notice">
-                      <strong>DEMO BAG · CHECKOUT DISABLED</strong>
-                      <span>Sample prices and product details are for website testing only. We are not accepting customer orders or payments yet.</span>
+                      <strong>DEMO TEST CHECKOUT · NO DELIVERY</strong>
+                      <span>Use Razorpay Test Mode to simulate payment for sample products. No real money is taken, no parcel is shipped and sample stock is never changed.</span>
                     </div>
                   ) : (
                     <>
-                  <p>Taxes are not included. Final delivery charges are recalculated for the selected PIN code when checkout is enabled.</p>
+                      <ShippingChecker subtotalPaise={Math.round(subtotal * 100)} />
+                      <p>Taxes are not included. Final delivery charges are recalculated for the selected PIN code when checkout is enabled.</p>
+                    </>
+                  )}
                   {!user ? (
-                    <div className="checkout-notice">Sign in to choose a saved delivery address. Checkout is in test mode only; no real payment will be taken.</div>
+                    <div className="checkout-notice">Sign in to choose a saved address/contact before test checkout. No real payment will be taken.</div>
                   ) : savedAddresses.length === 0 ? (
-                    <div className="checkout-notice">Add a delivery address to your account before checking out. This checkout is test only; live payments are disabled.</div>
+                    <div className="checkout-notice">Add a saved address/contact to your account before test checkout. Demo test orders are not delivered.</div>
                   ) : (
-                    <label className="checkout-address-label" htmlFor="checkout-address">DELIVER TO
+                    <label className="checkout-address-label" htmlFor="checkout-address">{isDemoCatalogueMode ? "TEST CONTACT" : "DELIVER TO"}
                       <select id="checkout-address" value={selectedAddressId} onChange={(event) => setSelectedAddressId(event.target.value)}>
                         {savedAddresses.map((address) => <option key={address.id} value={address.id}>{address.recipientName} · {address.city} · {address.pincode}{address.isDefault ? " · Default" : ""}</option>)}
                       </select>
@@ -749,9 +753,7 @@ export default function HomePage() {
                   >
                     {checkoutBusy ? "PREPARING TEST CHECKOUT…" : !user ? "SIGN IN TO CHECK OUT" : checkoutConfig?.enabled ? "CONTINUE TO TEST PAYMENT" : "TEST CHECKOUT NOT CONFIGURED"}
                   </button>
-                  <p className="checkout-live-note">TEST MODE ONLY · NO REAL PAYMENT · LIVE PAYMENTS DISABLED</p>
-                    </>
-                  )}
+                  <p className="checkout-live-note">{isDemoCatalogueMode ? "DEMO TEST ONLY · NO REAL MONEY · NO DELIVERY OR STOCK CHANGES" : "TEST MODE ONLY · NO REAL PAYMENT · LIVE PAYMENTS DISABLED"}</p>
                 </div>
               </>
             )}
