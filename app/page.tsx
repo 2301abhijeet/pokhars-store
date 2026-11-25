@@ -546,6 +546,8 @@ export default function HomePage() {
         </div>
       </section>
 
+      <div className="mithila-border-divider" aria-hidden="true" />
+
       <div className="ticker" aria-label="Brand message">
         <div className="ticker-track">
           {Array.from({ length: 2 }).map((_, index) => (
