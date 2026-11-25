@@ -484,14 +484,14 @@ export default function HomePage() {
   return (
     <main className="site-shell">
       <div className="announcement">
-        <span>MADE IN BIHAR</span><b>✳</b><span>BIG CRUNCH ENERGY</span><b>✳</b><span>SNACK HAPPY</span>
+        <span>ROOTED IN BIHAR</span><b>✺</b><span>INSPIRED BY MITHILA</span><b>✺</b><span>MAKHANA, REIMAGINED</span>
       </div>
 
       <header className="site-header">
         <a className="brand" href="#top" aria-label="POKHAR'S home">
           <span className="brand-mark">P</span>
           <span className="brand-word">POKHAR’S</span>
-          <span className="brand-sub">MAKHANA WITH A MOOD</span>
+          <span className="brand-sub">A TASTE OF BIHAR</span>
         </a>
 
         <button
@@ -519,30 +519,83 @@ export default function HomePage() {
       <section className="hero" id="top">
         <div className="hero-pink-shape" />
         <div className="hero-copy">
-          <p className="hero-kicker"><span>✳</span> THE FLAVOUR PARTY STARTS HERE <span>✳</span></p>
-          <h1>SNACK MOOD<br /><span>SWINGS</span></h1>
+          <p className="hero-kicker"><span>✺</span> MAKHANA ROOTED IN BIHAR · INSPIRED BY MITHILA</p>
+          <h1>A little piece<br />of <span>Bihar.</span></h1>
           <p className="hero-description">
-            Crunchy little mood-lifters, inspired by Bihar and made for every kind of day.
-            Pick your flavour. Follow your mood.
+            A familiar favourite, seen through the colour and craft of Mithila.
+            Meet POKHAR’S — where the heritage of Bihar finds a place in today’s snack time.
           </p>
-          <a className="hero-button" href="#flavours">FIND YOUR FLAVOUR <span>↘</span></a>
-          <div className="hero-sticker"><span>ROOTED IN</span><strong>BIHAR</strong><span>✳ SINCE ALWAYS ✳</span></div>
-        </div>
-        <div className="hero-art" aria-hidden="true">
-          <div className="hero-spark spark-one">✳</div>
-          <div className="hero-spark spark-two">✺</div>
-          <div className="hero-spark spark-three">✿</div>
-          <div className="hero-pouch">
-            <div className="pouch-crimp" />
-            <div className="pouch-logo">POKHAR’S</div>
-            <div className="pouch-rule" />
-            <div className="pouch-flavour">MAKHANA<br />CRUNCH</div>
-            <div className="pouch-orbit">✳</div>
-            <div className="pouch-caption">A TASTE OF BIHAR</div>
-            <div className="pouch-net">83 g</div>
+          <div className="hero-actions">
+            <a className="hero-button" href="#flavours">EXPLORE THE FLAVOURS <span>↗</span></a>
+            <a className="hero-text-link" href="#story">DISCOVER OUR ROOTS</a>
           </div>
-          <div className="hero-roundel"><span>GOOD</span><b>MOOD</b><span>FOOD!</span></div>
-          <div className="hero-floating-note">little bites<br />BIG DELIGHT</div>
+          <div className="hero-sticker"><span>ROOTED IN</span><strong>BIHAR</strong><span>✺ MITHILA · INDIA ✺</span></div>
+        </div>
+        <div className="hero-art" aria-label="Decorative Mithila-inspired illustration of makhana and lotus motifs">
+          <div className="hero-art-halo" />
+          <svg className="hero-mithila-art" viewBox="0 0 520 520" role="img" aria-hidden="true">
+            <defs>
+              <pattern id="mithila-dots" width="14" height="14" patternUnits="userSpaceOnUse">
+                <circle cx="3" cy="3" r="1.5" fill="#A64D3B" opacity=".65" />
+              </pattern>
+            </defs>
+            <circle cx="260" cy="260" r="225" fill="#E9D9BA" stroke="#C17A4B" strokeWidth="2" />
+            <circle cx="260" cy="260" r="211" fill="none" stroke="#315447" strokeWidth="3" />
+            <circle cx="260" cy="260" r="198" fill="none" stroke="#A64D3B" strokeWidth="1.5" strokeDasharray="3 8" />
+            <circle cx="260" cy="260" r="184" fill="url(#mithila-dots)" opacity=".65" />
+            <g fill="#A64D3B" stroke="#315447" strokeWidth="2">
+              <path d="M260 57 C236 85 235 105 260 126 C285 105 284 85 260 57Z" />
+              <path d="M260 57 C217 72 205 95 226 119 C246 116 257 99 260 57Z" />
+              <path d="M260 57 C303 72 315 95 294 119 C274 116 263 99 260 57Z" />
+              <path d="M260 78 C245 103 246 123 260 137 C274 123 275 103 260 78Z" fill="#D6A64E" />
+            </g>
+            <g fill="none" stroke="#315447" strokeWidth="2" strokeLinecap="round">
+              <path d="M260 137 C237 151 228 166 224 184" />
+              <path d="M260 137 C283 151 292 166 296 184" />
+              <path d="M223 184 C205 175 192 178 181 194 C198 204 214 201 223 184Z" />
+              <path d="M297 184 C315 175 328 178 339 194 C322 204 306 201 297 184Z" />
+            </g>
+            <g fill="none" stroke="#A64D3B" strokeWidth="3" strokeLinecap="round">
+              <path d="M97 250 C125 221 162 221 190 250 C162 279 125 279 97 250Z" />
+              <path d="M97 250 L75 230 L75 270Z" />
+              <circle cx="124" cy="246" r="3.5" fill="#A64D3B" stroke="none" />
+              <path d="M423 250 C395 221 358 221 330 250 C358 279 395 279 423 250Z" />
+              <path d="M423 250 L445 230 L445 270Z" />
+              <circle cx="396" cy="246" r="3.5" fill="#A64D3B" stroke="none" />
+            </g>
+            <g fill="none" stroke="#315447" strokeWidth="1.8">
+              <path d="M108 290 C138 308 157 308 181 288" />
+              <path d="M412 290 C382 308 363 308 339 288" />
+              <path d="M119 302 l-13 13 m25 -7 l-7 16 M401 302 l13 13 m-25 -7 l7 16" />
+            </g>
+            <circle cx="260" cy="285" r="123" fill="#F7EBD4" stroke="#315447" strokeWidth="3" />
+            <circle cx="260" cy="285" r="111" fill="none" stroke="#A64D3B" strokeWidth="2" strokeDasharray="2 7" />
+            <ellipse cx="260" cy="318" rx="105" ry="38" fill="#A64D3B" />
+            <ellipse cx="260" cy="308" rx="105" ry="35" fill="#F2DDB9" stroke="#315447" strokeWidth="2" />
+            <g fill="#F8F0DF" stroke="#C28B5A" strokeWidth="2">
+              <circle cx="207" cy="291" r="20" /><circle cx="248" cy="279" r="22" />
+              <circle cx="292" cy="291" r="20" /><circle cx="232" cy="315" r="19" />
+              <circle cx="275" cy="317" r="18" /><circle cx="318" cy="310" r="15" />
+              <circle cx="186" cy="311" r="13" /><circle cx="260" cy="296" r="17" />
+            </g>
+            <g fill="none" stroke="#D6A64E" strokeWidth="2" strokeLinecap="round">
+              <path d="M198 282 q8 -9 16 0 M239 269 q9 -10 18 0 M282 282 q8 -9 16 0 M222 306 q8 -8 15 0 M267 308 q7 -8 14 0 M178 306 q6 -6 12 0" />
+            </g>
+            <g fill="#315447">
+              <circle cx="260" cy="380" r="4" /><circle cx="244" cy="380" r="2.5" /><circle cx="276" cy="380" r="2.5" />
+            </g>
+            <path d="M190 405 C214 423 306 423 330 405" fill="none" stroke="#A64D3B" strokeWidth="3" strokeLinecap="round" />
+            <path d="M206 418 C226 441 294 441 314 418" fill="none" stroke="#315447" strokeWidth="2" strokeLinecap="round" />
+            <g fill="#A64D3B">
+              <circle cx="260" cy="456" r="5" /><circle cx="237" cy="450" r="3" /><circle cx="283" cy="450" r="3" />
+            </g>
+            <g fill="none" stroke="#315447" strokeWidth="2">
+              <path d="M260 458 C240 477 222 478 204 465 C216 444 238 443 260 458Z" />
+              <path d="M260 458 C280 477 298 478 316 465 C304 444 282 443 260 458Z" />
+            </g>
+          </svg>
+          <div className="hero-art-caption"><span>POKHAR’S</span><b>FOLK ART · BIHAR</b></div>
+          <span className="hero-art-side-note">MADE OF ROOTS & STORIES</span>
         </div>
       </section>
 
@@ -550,8 +603,8 @@ export default function HomePage() {
         <div className="ticker-track">
           {Array.from({ length: 2 }).map((_, index) => (
             <span className="ticker-set" key={index}>
-              <span>CRUNCH INTO HAPPY</span><b>✳</b><span>ROOTED IN BIHAR</span><b>✳</b>
-              <span>GOOD MOOD FOOD</span><b>✳</b><span>PASS THE MAKHANA</span><b>✳</b>
+              <span>ROOTS THAT RUN DEEP</span><b>✺</b><span>THE SPIRIT OF MITHILA</span><b>✺</b>
+              <span>BIHAR ON OUR MINDS</span><b>✺</b><span>A NEW KIND OF CRUNCH</span><b>✺</b>
             </span>
           ))}
         </div>
@@ -560,12 +613,11 @@ export default function HomePage() {
       <section className="flavours-section" id="flavours">
         <div className="section-heading">
           <div>
-            <p className="section-kicker">THE POKHAR’S FLAVOUR CLUB</p>
-            <h2>What’s your<br /><span>snack mood?</span></h2>
+            <p className="section-kicker">A COLLECTION ROOTED IN BIHAR</p>
+            <h2>Tradition in every<br /><span>little crunch.</span></h2>
           </div>
           <p className="section-intro">
-            From chill vibes to full-on fire, there’s a little crunch for every mood.
-            Swipe through the flavour gang.
+            Explore the POKHAR’S flavour collection — inspired by the land, made for the everyday.
           </p>
         </div>
 
@@ -680,51 +732,64 @@ export default function HomePage() {
 
       <section className="story-section" id="story">
         <div className="story-art" aria-hidden="true">
-          <div className="story-pink-disc" />
-          <div className="story-cream-disc">
-            <span className="story-sun">✺</span>
-            <span className="story-fish fish-left">◉</span>
-            <span className="story-lotus">✿</span>
-            <span className="story-fish fish-right">◉</span>
-            <span className="story-leaves">❧ ❧</span>
-            <small>MITHILA · BIHAR · INDIA</small>
+          <div className="story-art-frame">
+            <span className="story-art-overline">A LIVING FOLK-ART TRADITION</span>
+            <svg className="story-lotus-art" viewBox="0 0 360 300">
+              <g fill="#B6533D" stroke="#23493A" strokeWidth="2.5" strokeLinejoin="round">
+                <path d="M180 214 C135 171 132 123 180 55 C228 123 225 171 180 214Z" />
+                <path d="M179 214 C107 193 77 157 84 100 C141 119 172 158 179 214Z" />
+                <path d="M181 214 C253 193 283 157 276 100 C219 119 188 158 181 214Z" />
+                <path d="M180 212 C143 151 145 103 180 76 C215 103 217 151 180 212Z" fill="#D9A84E" />
+              </g>
+              <path d="M180 214 C179 240 165 252 145 264 M180 214 C181 240 195 252 215 264" fill="none" stroke="#23493A" strokeWidth="3" strokeLinecap="round" />
+              <g fill="none" stroke="#23493A" strokeWidth="2">
+                <path d="M143 264 C116 231 89 232 74 252 C94 277 119 281 143 264Z" />
+                <path d="M217 264 C244 231 271 232 286 252 C266 277 241 281 217 264Z" />
+                <path d="M180 214 V278" />
+              </g>
+              <g fill="#D9A84E">
+                <circle cx="180" cy="214" r="7" /><circle cx="165" cy="228" r="3" /><circle cx="195" cy="228" r="3" />
+              </g>
+            </svg>
+            <span className="story-art-word">MITHILA</span>
+            <span className="story-art-place">BIHAR · INDIA</span>
+            <span className="story-art-number">01 / OUR ROOTS</span>
           </div>
-          <span className="story-side-note">A LITTLE ROOTS. A LOT OF HEART.</span>
         </div>
         <div className="story-copy">
-          <p className="section-kicker">OUR KIND OF CRUNCH</p>
-          <h2>From our<br />side of the map<br /><span>to your snack time.</span></h2>
+          <p className="section-kicker">THE LAND. THE LEGACY.</p>
+          <h2>Born in Bihar.<br />Inspired by <span>Mithila.</span></h2>
           <p>
-            POKHAR’S takes inspiration from Bihar’s makhana and Mithila’s colourful
-            spirit. We’re bringing that familiar feeling into a fresh, fun snacking
-            experience — one little crunch at a time.
+            Makhana is part of Bihar’s food story. Mithila brings its own unmistakable
+            language of colour, line and living folk art. POKHAR’S brings these roots
+            into a fresh, thoughtful expression of everyday snacking.
           </p>
-          <a className="story-link" href="#heritage">GET TO KNOW POKHAR’S <span>↗</span></a>
+          <a className="story-link" href="#heritage">EXPLORE THE HERITAGE <span>↗</span></a>
         </div>
       </section>
 
       <section className="heritage-section" id="heritage">
-        <p className="section-kicker">A LITTLE CULTURE IN THE CRUNCH</p>
-        <h2>Our roots are <span>colourful.</span></h2>
+        <p className="section-kicker">MOTIFS WITH MEANING · ROOTS WITH STORIES</p>
+        <h2>A heritage that <span>lives in colour.</span></h2>
         <p>
-          Inspired by Mithila’s lively folk-art language — bold lines, happy motifs,
-          and stories that feel right at home.
+          Inspired by the expressive visual language of Mithila — nature, rhythm,
+          celebration and the beauty of hand-drawn detail.
         </p>
         <div className="motif-row">
           <div><span>✿</span><small>LOTUS</small></div>
+          <div><span>◖≈◗</span><small>FISH</small></div>
           <div><span>❧</span><small>VINES</small></div>
-          <div><span>≋</span><small>RIVER</small></div>
-          <div><span>✳</span><small>FOLK ART</small></div>
-          <div><span>◉</span><small>BIHAR</small></div>
+          <div><span>✺</span><small>SUN</small></div>
+          <div><span>⌁</span><small>RIVER</small></div>
         </div>
       </section>
 
       <section className="closing-banner">
-        <p className="section-kicker">GOOD MOOD. GREAT CRUNCH.</p>
-        <h2>Let’s make snack time<br /><span>a little happier.</span></h2>
-        <a className="hero-button" href="#flavours">PICK YOUR POKHAR’S <b>↗</b></a>
+        <p className="section-kicker">A TASTE OF BIHAR · A STORY OF MITHILA</p>
+        <h2>Rooted in tradition.<br /><span>Made for today.</span></h2>
+        <a className="hero-button" href="#flavours">EXPLORE POKHAR’S <b>↗</b></a>
         <span className="closing-spark spark-left">✿</span>
-        <span className="closing-spark spark-right">✳</span>
+        <span className="closing-spark spark-right">✺</span>
       </section>
 
       <footer className="site-footer" id="footer">
